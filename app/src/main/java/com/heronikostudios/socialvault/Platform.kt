@@ -14,12 +14,17 @@ data class Platform(
     val iconResId: Int
         get() = when (iconType) {
             "facebook" -> R.drawable.ic_platform_facebook
+            "youtube" -> R.drawable.ic_platform_youtube
             "instagram" -> R.drawable.ic_platform_instagram
             "tiktok" -> R.drawable.ic_platform_tiktok
             "reddit" -> R.drawable.ic_platform_reddit
-            "linkedin" -> R.drawable.ic_platform_linkedin
             "x" -> R.drawable.ic_platform_x
+            "pinterest" -> R.drawable.ic_platform_pinterest
+            "linkedin" -> R.drawable.ic_platform_linkedin
             "threads" -> R.drawable.ic_platform_threads
+            "twitch" -> R.drawable.ic_platform_twitch
+            "bluesky" -> R.drawable.ic_platform_bluesky
+            "mastodon" -> R.drawable.ic_platform_mastodon
             else -> R.drawable.ic_globe
         }
 

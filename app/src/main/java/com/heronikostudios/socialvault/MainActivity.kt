@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity() {
             ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
             0
         ) {
+            @Suppress("DEPRECATION")
             override fun onMove(
                 recyclerView: RecyclerView,
                 viewHolder: RecyclerView.ViewHolder,

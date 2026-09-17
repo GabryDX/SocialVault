@@ -19,7 +19,7 @@ class PlatformManager(private val context: Context) {
 
     companion object {
         private const val PREFS_NAME = "social_vault_platforms"
-        private const val KEY_PLATFORMS = "saved_platforms_list_v3"
+        private const val KEY_PLATFORMS = "saved_platforms_list_v4"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -29,6 +29,14 @@ class PlatformManager(private val context: Context) {
                 iconType = "facebook",
                 accentColor = "#1877F2",
                 allowedDomains = listOf("facebook.com", "fbcdn.net", "m.facebook.com")
+            ),
+            Platform(
+                id = "youtube",
+                name = "YouTube",
+                url = "https://m.youtube.com",
+                iconType = "youtube",
+                accentColor = "#FF0000",
+                allowedDomains = listOf("youtube.com", "googlevideo.com", "ytimg.com", "youtu.be")
             ),
             Platform(
                 id = "instagram",
@@ -55,14 +63,6 @@ class PlatformManager(private val context: Context) {
                 allowedDomains = listOf("reddit.com", "redd.it", "redditmedia.com")
             ),
             Platform(
-                id = "linkedin",
-                name = "LinkedIn",
-                url = "https://www.linkedin.com",
-                iconType = "linkedin",
-                accentColor = "#0A66C2",
-                allowedDomains = listOf("linkedin.com", "licdn.com")
-            ),
-            Platform(
                 id = "x",
                 name = "X",
                 url = "https://x.com",
@@ -71,12 +71,52 @@ class PlatformManager(private val context: Context) {
                 allowedDomains = listOf("x.com", "twitter.com", "twimg.com")
             ),
             Platform(
+                id = "pinterest",
+                name = "Pinterest",
+                url = "https://www.pinterest.com",
+                iconType = "pinterest",
+                accentColor = "#E60023",
+                allowedDomains = listOf("pinterest.com", "pinimg.com")
+            ),
+            Platform(
+                id = "linkedin",
+                name = "LinkedIn",
+                url = "https://www.linkedin.com",
+                iconType = "linkedin",
+                accentColor = "#0A66C2",
+                allowedDomains = listOf("linkedin.com", "licdn.com")
+            ),
+            Platform(
                 id = "threads",
                 name = "Threads",
                 url = "https://www.threads.net",
                 iconType = "threads",
                 accentColor = "#FFFFFF",
                 allowedDomains = listOf("threads.net")
+            ),
+            Platform(
+                id = "twitch",
+                name = "Twitch",
+                url = "https://m.twitch.tv",
+                iconType = "twitch",
+                accentColor = "#9146FF",
+                allowedDomains = listOf("twitch.tv", "ttvnw.net", "jtvnw.net")
+            ),
+            Platform(
+                id = "bluesky",
+                name = "Bluesky",
+                url = "https://bsky.app",
+                iconType = "bluesky",
+                accentColor = "#0085FF",
+                allowedDomains = listOf("bsky.app", "bsky.social")
+            ),
+            Platform(
+                id = "mastodon",
+                name = "Mastodon",
+                url = "https://mastodon.social",
+                iconType = "mastodon",
+                accentColor = "#6364FF",
+                allowedDomains = listOf("mastodon.social")
             )
         )
     }

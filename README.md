@@ -17,13 +17,19 @@ Native social media apps often collect extensive device telemetry, access contac
 
 ## ✨ Features
 
-- **Multi-Platform Support**: Built-in instant switching between popular platforms:
-  - TikTok
-  - Instagram
-  - X (Twitter)
-  - Threads
+- **Multi-Platform Support**: Built-in instant switching between popular platforms ordered by global popularity:
   - Facebook
+  - YouTube
+  - Instagram
+  - TikTok
   - Reddit
+  - X (Twitter)
+  - Pinterest
+  - LinkedIn
+  - Threads
+  - Twitch
+  - Bluesky
+  - Mastodon
 - **Custom Platforms**: Add any website or web app with a simple `+` button, managed with local persistence.
 - **Strict Privacy Sandboxing**:
   - Whitelisted domain isolation per platform: links leading to external domains are safely opened in your system's default browser.
