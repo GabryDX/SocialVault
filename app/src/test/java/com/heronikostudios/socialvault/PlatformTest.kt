@@ -82,4 +82,75 @@ class PlatformTest {
         assertTrue(platform.isDomainAllowed("https://tiktok.com/search?q=[music]"))
         assertFalse(platform.isDomainAllowed("https://evil.com/search?q=[music]"))
     }
+
+    @Test
+    fun normalizeUrl_addsHttpsWhenMissingAndTrims() {
+        assertEquals("https://www.instagram.com/p/123", PlatformManager.normalizeUrl("www.instagram.com/p/123"))
+        assertEquals("https://tiktok.com/@user", PlatformManager.normalizeUrl("   tiktok.com/@user   "))
+        assertEquals("http://x.com/post", PlatformManager.normalizeUrl("http://x.com/post"))
+        assertEquals("https://m.youtube.com", PlatformManager.normalizeUrl("https://m.youtube.com"))
+    }
+
+    @Test
+    fun findMatchingPlatform_matchesPopularPlatformsAndShortLinks() {
+        val platforms = PlatformManager.DEFAULT_PLATFORMS
+
+        // Instagram reel and short link
+        val instaReel = PlatformManager.findMatchingPlatform(platforms, "https://www.instagram.com/reel/C7abc/?igsh=123")
+        assertEquals("instagram", instaReel?.id)
+        val instaShort = PlatformManager.findMatchingPlatform(platforms, "https://instagr.am/p/C7xyz/")
+        assertEquals("instagram", instaShort?.id)
+
+        // TikTok video and short links
+        val tiktokVideo = PlatformManager.findMatchingPlatform(platforms, "https://www.tiktok.com/@user/video/123456789")
+        assertEquals("tiktok", tiktokVideo?.id)
+        val tiktokShortVm = PlatformManager.findMatchingPlatform(platforms, "https://vm.tiktok.com/ZM8abc123/")
+        assertEquals("tiktok", tiktokShortVm?.id)
+        val tiktokShortVt = PlatformManager.findMatchingPlatform(platforms, "https://vt.tiktok.com/ZM8abc123/")
+        assertEquals("tiktok", tiktokShortVt?.id)
+
+        // YouTube video and short link
+        val ytVideo = PlatformManager.findMatchingPlatform(platforms, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        assertEquals("youtube", ytVideo?.id)
+        val ytShort = PlatformManager.findMatchingPlatform(platforms, "https://youtu.be/dQw4w9WgXcQ")
+        assertEquals("youtube", ytShort?.id)
+
+        // X/Twitter and t.co
+        val xPost = PlatformManager.findMatchingPlatform(platforms, "https://x.com/user/status/123456")
+        assertEquals("x", xPost?.id)
+        val twitterPost = PlatformManager.findMatchingPlatform(platforms, "https://twitter.com/user/status/123456")
+        assertEquals("x", twitterPost?.id)
+        val tCoLink = PlatformManager.findMatchingPlatform(platforms, "https://t.co/xyz123")
+        assertEquals("x", tCoLink?.id)
+
+        // Facebook and fb.watch / fb.me
+        val fbWatch = PlatformManager.findMatchingPlatform(platforms, "https://fb.watch/v/abc123xyz/")
+        assertEquals("facebook", fbWatch?.id)
+        val fbMe = PlatformManager.findMatchingPlatform(platforms, "https://fb.me/abc123xyz")
+        assertEquals("facebook", fbMe?.id)
+
+        // Pinterest pin.it
+        val pinIt = PlatformManager.findMatchingPlatform(platforms, "https://pin.it/abcXYZ")
+        assertEquals("pinterest", pinIt?.id)
+
+        // LinkedIn lnkd.in
+        val lnkdIn = PlatformManager.findMatchingPlatform(platforms, "https://lnkd.in/gAbCdEf")
+        assertEquals("linkedin", lnkdIn?.id)
+
+        // Reddit redd.it
+        val reddIt = PlatformManager.findMatchingPlatform(platforms, "https://redd.it/abc123xyz")
+        assertEquals("reddit", reddIt?.id)
+    }
+
+    @Test
+    fun findMatchingPlatform_rejectsUnsupportedDomains() {
+        val platforms = PlatformManager.DEFAULT_PLATFORMS
+
+        // Random websites and phishing attacks must return null
+        org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "https://google.com"))
+        org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "https://phishing-instagram.com/login"))
+        org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "https://evil-tiktok.com/@user"))
+        org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "https://mybank.com/transfer"))
+        org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "javascript:alert(1)"))
+    }
 }

@@ -10,4 +10,9 @@
     <string name="btn_cancel">Cancel</string>
     <string name="btn_delete">Delete</string>
     <string name="invalid_url_error">Please enter a valid https:// URL</string>
+    <string name="action_open_social_link">Open Social Link</string>
+    <string name="title_open_social_link">Open Social Link</string>
+    <string name="desc_open_social_link">Paste a link to open it in a private sandboxed tab. Only links from supported social platforms will be opened.</string>
+    <string name="hint_social_media_url">Social Media URL</string>
+    <string name="btn_open">Open</string>
 </resources>

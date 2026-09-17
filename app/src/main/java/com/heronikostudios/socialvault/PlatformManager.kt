@@ -29,7 +29,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://m.facebook.com",
                 iconType = "facebook",
                 accentColor = "#1877F2",
-                allowedDomains = listOf("facebook.com", "fbcdn.net", "m.facebook.com")
+                allowedDomains = listOf("facebook.com", "fbcdn.net", "m.facebook.com", "fb.watch", "fb.me")
             ),
             Platform(
                 id = "youtube",
@@ -37,7 +37,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://m.youtube.com",
                 iconType = "youtube",
                 accentColor = "#FF0000",
-                allowedDomains = listOf("youtube.com", "googlevideo.com", "ytimg.com", "youtu.be")
+                allowedDomains = listOf("youtube.com", "googlevideo.com", "ytimg.com", "youtu.be", "m.youtube.com")
             ),
             Platform(
                 id = "instagram",
@@ -45,7 +45,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://www.instagram.com",
                 iconType = "instagram",
                 accentColor = "#E1306C",
-                allowedDomains = listOf("instagram.com", "cdninstagram.com")
+                allowedDomains = listOf("instagram.com", "cdninstagram.com", "instagr.am")
             ),
             Platform(
                 id = "tiktok",
@@ -53,7 +53,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://www.tiktok.com",
                 iconType = "tiktok",
                 accentColor = "#00F2FE",
-                allowedDomains = listOf("tiktok.com", "tiktokcdn.com")
+                allowedDomains = listOf("tiktok.com", "tiktokcdn.com", "vm.tiktok.com", "vt.tiktok.com")
             ),
             Platform(
                 id = "reddit",
@@ -69,7 +69,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://x.com",
                 iconType = "x",
                 accentColor = "#F8FAFC",
-                allowedDomains = listOf("x.com", "twitter.com", "twimg.com")
+                allowedDomains = listOf("x.com", "twitter.com", "twimg.com", "t.co")
             ),
             Platform(
                 id = "pinterest",
@@ -77,7 +77,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://www.pinterest.com",
                 iconType = "pinterest",
                 accentColor = "#E60023",
-                allowedDomains = listOf("pinterest.com", "pinimg.com")
+                allowedDomains = listOf("pinterest.com", "pinimg.com", "pin.it")
             ),
             Platform(
                 id = "linkedin",
@@ -85,7 +85,7 @@ class PlatformManager(private val context: Context) {
                 url = "https://www.linkedin.com",
                 iconType = "linkedin",
                 accentColor = "#0A66C2",
-                allowedDomains = listOf("linkedin.com", "licdn.com")
+                allowedDomains = listOf("linkedin.com", "licdn.com", "lnkd.in")
             ),
             Platform(
                 id = "threads",
@@ -120,6 +120,20 @@ class PlatformManager(private val context: Context) {
                 allowedDomains = listOf("mastodon.social")
             )
         )
+
+        fun normalizeUrl(urlString: String): String {
+            val trimmed = urlString.trim()
+            return if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+                "https://$trimmed"
+            } else {
+                trimmed
+            }
+        }
+
+        fun findMatchingPlatform(platforms: List<Platform>, targetUrl: String): Platform? {
+            val cleanUrl = normalizeUrl(targetUrl)
+            return platforms.find { platform -> platform.isDomainAllowed(cleanUrl) }
+        }
     }
 
     fun getAllPlatforms(): List<Platform> = currentPlatforms.toList()
@@ -189,6 +203,12 @@ class PlatformManager(private val context: Context) {
     fun setStripMetadataEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_STRIP_METADATA, enabled) }
     }
+
+    fun findMatchingPlatform(targetUrl: String): Platform? {
+        return findMatchingPlatform(getAllPlatforms(), targetUrl)
+    }
+
+    fun normalizeUrl(urlString: String): String = Companion.normalizeUrl(urlString)
 
     private fun loadPlatforms() {
         currentPlatforms.clear()

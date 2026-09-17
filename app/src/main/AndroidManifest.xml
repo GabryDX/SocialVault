@@ -19,10 +19,58 @@
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep linking for supported social media URLs -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="instagram.com" />
+                <data android:host="*.instagram.com" />
+                <data android:host="instagr.am" />
+                <data android:host="tiktok.com" />
+                <data android:host="*.tiktok.com" />
+                <data android:host="facebook.com" />
+                <data android:host="*.facebook.com" />
+                <data android:host="fb.watch" />
+                <data android:host="fb.me" />
+                <data android:host="youtube.com" />
+                <data android:host="*.youtube.com" />
+                <data android:host="youtu.be" />
+                <data android:host="reddit.com" />
+                <data android:host="*.reddit.com" />
+                <data android:host="redd.it" />
+                <data android:host="x.com" />
+                <data android:host="*.x.com" />
+                <data android:host="twitter.com" />
+                <data android:host="*.twitter.com" />
+                <data android:host="threads.net" />
+                <data android:host="*.threads.net" />
+                <data android:host="pinterest.com" />
+                <data android:host="*.pinterest.com" />
+                <data android:host="pin.it" />
+                <data android:host="linkedin.com" />
+                <data android:host="*.linkedin.com" />
+                <data android:host="lnkd.in" />
+                <data android:host="twitch.tv" />
+                <data android:host="*.twitch.tv" />
+                <data android:host="bsky.app" />
+                <data android:host="mastodon.social" />
+            </intent-filter>
+
+            <!-- Share Target: Receive shared links from WhatsApp and other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

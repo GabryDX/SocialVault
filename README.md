@@ -39,6 +39,11 @@ Native social media apps often collect extensive device telemetry, access contac
   - Cleartext HTTP traffic completely blocked (HTTPS enforced).
   - Cloud backups and ADB device extraction disabled.
   - Zero third-party trackers, closed-source analytics, or ad SDKs.
+- **Deep Linking, Share Target & Link Opener**:
+  - **In-App "Open Social Link"**: Quick-paste dialog with clipboard auto-detection. Validates URLs strictly against supported social platforms—rejects unsupported domains to preserve sandbox isolation.
+  - **Direct Deep Linking (`ACTION_VIEW`)**: Open Instagram Reels, TikTok videos, YouTube clips, Tweets, and other social links directly from messaging apps (e.g. WhatsApp, Telegram, Signal) inside SocialVault.
+  - **Android Share Target (`ACTION_SEND`)**: Share text or links from any Android app into SocialVault to open them in their dedicated, sandboxed tab.
+  - **Short-Link Resolution**: Built-in support for platform short domains (`instagr.am`, `vm.tiktok.com`, `vt.tiktok.com`, `youtu.be`, `t.co`, `fb.watch`, `fb.me`, `pin.it`, `lnkd.in`, `redd.it`).
 - **Rich Media, Downloads & Fullscreen**:
   - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.
   - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.

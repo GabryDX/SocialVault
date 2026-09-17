@@ -153,6 +153,12 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
 * **Criterion 3: File & Content Scheme Dropping.**  
   *Direct requests for `file:`, `content:`, `javascript:`, or `data:` schemes within `shouldOverrideUrlLoading` return `true` immediately to suppress navigation and prohibit external dispatching.*
 
+* **Criterion 4: Deep Linking & External Link Ingestion Security.**  
+  *External deep links (`ACTION_VIEW`) and shared links (`ACTION_SEND`) are intercepted and evaluated against `PlatformManager.findMatchingPlatform()` prior to loading.*  
+  *Arbitrary third-party or untrusted URLs are strictly rejected from launching in the sandboxed social tabs, mitigating sandbox injection, URL spoofing, and phishing attacks.*  
+  *Clipboard contents are sanitized and validated with regex URL extraction before population in the paste dialog.*  
+  *`MainActivity` declares `android:launchMode="singleTask"`, ensuring that external links route cleanly into the running task via `onNewIntent` and preventing task hijacking or duplicate process leaks.*
+
 ---
 
 ### MASVS-CODE: Code Quality & Build Configurations
@@ -217,11 +223,22 @@ JAVA_HOME=/home/trollo/.jdks/jdk-21.0.12.1+1 ANDROID_HOME=/home/trollo/AndroidSD
 
 ### Test Suite Execution Output
 ```
-<testsuite name="com.heronikostudios.socialvault.PlatformTest" tests="4" skipped="0" failures="0" errors="0">
-  <testcase name="domainAllowed_matchesExactAndSubdomain" time="0.015"/>
-  <testcase name="domainAllowed_rejectsNonHttpSchemesAndMalformedUrls" time="0.001"/>
-  <testcase name="defaultPlatforms_orderedByPopularity" time="0.002"/>
-  <testcase name="customPlatform_allowedDomainsDerivedFromUrl" time="0.001"/>
+<testsuite name="com.heronikostudios.socialvault.PlatformTest" tests="7" skipped="0" failures="0" errors="0">
+  <testcase name="findMatchingPlatform_matchesPopularPlatformsAndShortLinks"/>
+  <testcase name="domainAllowed_matchesExactAndSubdomain"/>
+  <testcase name="normalizeUrl_addsHttpsWhenMissingAndTrims"/>
+  <testcase name="domainAllowed_rejectsNonHttpSchemesAndMalformedUrls"/>
+  <testcase name="findMatchingPlatform_rejectsUnsupportedDomains"/>
+  <testcase name="defaultPlatforms_orderedByPopularity"/>
+  <testcase name="customPlatform_allowedDomainsDerivedFromUrl"/>
+</testsuite>
+<testsuite name="com.heronikostudios.socialvault.DownloadHelperTest" tests="2" skipped="0" failures="0" errors="0">
+  <testcase name="isMediaUrl_rejectsNonMediaUrls"/>
+  <testcase name="isMediaUrl_identifiesImageAndVideoExtensions"/>
+</testsuite>
+<testsuite name="com.heronikostudios.socialvault.MetadataStripperTest" tests="2" skipped="0" failures="0" errors="0">
+  <testcase name="isImageExtension_rejectsNonImageFormats"/>
+  <testcase name="isImageExtension_recognizesCommonImageFormats"/>
 </testsuite>
 ```
 

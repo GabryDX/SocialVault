@@ -1,6 +1,8 @@
 package com.heronikostudios.socialvault
 
 import android.annotation.SuppressLint
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
@@ -99,6 +101,13 @@ class MainActivity : AppCompatActivity() {
         setupTabListener()
 
         showDashboard()
+        handleIncomingIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
     }
 
     private fun setupInsets() {
@@ -163,6 +172,10 @@ class MainActivity : AppCompatActivity() {
         }
         touchHelper.attachToRecyclerView(binding.rvPlatformsGrid)
 
+        binding.btnOpenLink.setOnClickListener {
+            showOpenUrlDialog()
+        }
+
         binding.btnAddPlatform.setOnClickListener {
             showAddPlatformDialog()
         }
@@ -176,6 +189,10 @@ class MainActivity : AppCompatActivity() {
                 (tabManager.activeTab != null)
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
+                    R.id.menu_open_url -> {
+                        showOpenUrlDialog()
+                        true
+                    }
                     R.id.menu_add_platform -> {
                         showAddPlatformDialog()
                         true
@@ -269,12 +286,15 @@ class MainActivity : AppCompatActivity() {
         updateNavButtons()
     }
 
-    private fun openPlatformInNewTab(platform: Platform) {
+    private fun openPlatformInNewTab(platform: Platform, targetUrl: String? = null) {
+        val urlToLoad = targetUrl ?: platform.url
         val webView = createConfiguredWebView(platform)
         val tab = Tab(
             id = UUID.randomUUID().toString(),
             platform = platform,
-            webView = webView
+            webView = webView,
+            title = platform.name,
+            currentUrl = urlToLoad
         )
 
         binding.webViewContainer.addView(
@@ -288,7 +308,7 @@ class MainActivity : AppCompatActivity() {
 
         tabManager.addTab(tab)
         switchToTab(tab)
-        webView.loadUrl(platform.url)
+        webView.loadUrl(urlToLoad)
     }
 
     private fun switchToTab(tab: Tab) {
@@ -626,10 +646,23 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun showAddPlatformDialog() {
+    private fun showAddPlatformDialog(prefilledUrl: String? = null) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_add_platform, null)
         val etName = dialogView.findViewById<TextInputEditText>(R.id.etName)
         val etUrl = dialogView.findViewById<TextInputEditText>(R.id.etUrl)
+
+        if (!prefilledUrl.isNullOrBlank()) {
+            etUrl.setText(prefilledUrl)
+            val host = try {
+                Uri.parse(prefilledUrl).host?.removePrefix("www.")?.removePrefix("m.") ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+            if (host.isNotEmpty()) {
+                val suggestedName = host.substringBefore('.').replaceFirstChar { it.uppercase() }
+                etName.setText(suggestedName)
+            }
+        }
 
         MaterialAlertDialogBuilder(this)
             .setView(dialogView)
@@ -723,7 +756,95 @@ class MainActivity : AppCompatActivity() {
             iconType = "globe",
             allowedDomains = listOf(host)
         )
-        openPlatformInNewTab(mediaPlatform)
+        openPlatformInNewTab(mediaPlatform, mediaUrl)
+    }
+
+    private fun showOpenUrlDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_open_url, null)
+        val etOpenUrl = dialogView.findViewById<TextInputEditText>(R.id.etOpenUrl)
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val clipData = clipboard?.primaryClip
+        if (clipData != null && clipData.itemCount > 0) {
+            val clipText = clipData.getItemAt(0)?.text?.toString()?.trim()
+            if (!clipText.isNullOrBlank()) {
+                val candidate = extractUrlFromText(clipText) ?: if (clipText.startsWith("http://", ignoreCase = true) || clipText.startsWith("https://", ignoreCase = true)) clipText else null
+                if (candidate != null) {
+                    etOpenUrl.setText(candidate)
+                    etOpenUrl.selectAll()
+                }
+            }
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .setPositiveButton(R.string.btn_open) { _, _ ->
+                val inputUrl = etOpenUrl.text?.toString()?.trim() ?: ""
+                if (inputUrl.isNotEmpty()) {
+                    openSocialUrlIfSupported(inputUrl)
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun openSocialUrlIfSupported(rawUrl: String): Boolean {
+        val normalizedUrl = platformManager.normalizeUrl(rawUrl)
+        val matchedPlatform = platformManager.findMatchingPlatform(normalizedUrl)
+
+        return if (matchedPlatform != null) {
+            openPlatformInNewTab(matchedPlatform, normalizedUrl)
+            true
+        } else {
+            val host = try {
+                Uri.parse(normalizedUrl).host ?: normalizedUrl
+            } catch (_: Exception) {
+                normalizedUrl
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Unsupported Platform")
+                .setMessage("The link ($host) is not from a supported social platform. SocialVault only opens supported platforms to isolate sessions and protect your privacy.")
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Add as Custom Platform") { _, _ ->
+                    showAddPlatformDialog(normalizedUrl)
+                }
+                .show()
+            false
+        }
+    }
+
+    private fun handleIncomingIntent(incomingIntent: Intent?) {
+        if (incomingIntent == null) return
+
+        when (incomingIntent.action) {
+            Intent.ACTION_VIEW -> {
+                val dataUri = incomingIntent.dataString
+                if (!dataUri.isNullOrBlank()) {
+                    openSocialUrlIfSupported(dataUri)
+                    incomingIntent.data = null
+                }
+            }
+            Intent.ACTION_SEND -> {
+                if (incomingIntent.type == "text/plain") {
+                    val sharedText = incomingIntent.getStringExtra(Intent.EXTRA_TEXT)
+                    if (!sharedText.isNullOrBlank()) {
+                        val extractedUrl = extractUrlFromText(sharedText)
+                        if (extractedUrl != null) {
+                            openSocialUrlIfSupported(extractedUrl)
+                        } else {
+                            Toast.makeText(this, "No valid link found in shared text", Toast.LENGTH_SHORT).show()
+                        }
+                        incomingIntent.removeExtra(Intent.EXTRA_TEXT)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun extractUrlFromText(text: String): String? {
+        val urlRegex = Regex("""https?://[^\s]+""", RegexOption.IGNORE_CASE)
+        val match = urlRegex.find(text)
+        return match?.value?.trimEnd('.', ',', ')', ']', ';', '>', '!', '"', '\'')
     }
 
     private fun extractAndDownloadVideo(webView: WebView) {
