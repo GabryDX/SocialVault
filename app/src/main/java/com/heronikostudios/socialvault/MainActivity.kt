@@ -87,8 +87,8 @@ class MainActivity : AppCompatActivity() {
             onPlatformClick = { platform ->
                 openPlatformInNewTab(platform)
             },
-            onPlatformLongClick = { platform ->
-                showDeletePlatformDialog(platform)
+            onPlatformOptionsClick = { platform, anchorView ->
+                showPlatformOptions(platform, anchorView)
             }
         )
 
@@ -508,6 +508,25 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
+    }
+
+    private fun showPlatformOptions(platform: Platform, anchorView: View) {
+        val popup = PopupMenu(this, anchorView)
+        popup.menuInflater.inflate(R.menu.menu_platform_item, popup.menu)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_open_tab -> {
+                    openPlatformInNewTab(platform)
+                    true
+                }
+                R.id.action_remove_platform -> {
+                    showDeletePlatformDialog(platform)
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
     }
 
     private fun showDeletePlatformDialog(platform: Platform) {

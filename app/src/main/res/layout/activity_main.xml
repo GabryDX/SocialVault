@@ -118,7 +118,7 @@
                     android:layout_marginTop="20dp"
                     android:layout_marginBottom="16dp"
                     android:gravity="center"
-                    android:text="💡 Hold &amp; drag cards to reorder • Long-press to remove"
+                    android:text="💡 Hold &amp; drag cards to reorder • Tap ⋮ to manage"
                     android:textColor="#64748B"
                     android:textSize="12sp" />
 

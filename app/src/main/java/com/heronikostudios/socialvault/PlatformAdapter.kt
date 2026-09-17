@@ -1,6 +1,7 @@
 package com.heronikostudios.socialvault
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.heronikostudios.socialvault.databinding.ItemPlatformGridBinding
@@ -10,7 +11,7 @@ import java.util.Collections
 class PlatformAdapter(
     private var platforms: MutableList<Platform>,
     private val onPlatformClick: (Platform) -> Unit,
-    private val onPlatformLongClick: (Platform) -> Unit
+    private val onPlatformOptionsClick: (Platform, View) -> Unit
 ) : RecyclerView.Adapter<PlatformAdapter.PlatformViewHolder>() {
 
     fun updatePlatforms(newPlatforms: List<Platform>) {
@@ -65,9 +66,9 @@ class PlatformAdapter(
                 onPlatformClick(platform)
             }
 
-            binding.cardPlatform.setOnLongClickListener {
-                onPlatformLongClick(platform)
-                true
+            // Options button triggers popup menu (eliminating long-press gesture conflict)
+            binding.btnPlatformOptions.setOnClickListener { view ->
+                onPlatformOptionsClick(platform, view)
             }
         }
     }
