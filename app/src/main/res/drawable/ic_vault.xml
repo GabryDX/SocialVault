@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Background Shield/Vault Shape -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M54,18 C70,18 84,24 84,24 L84,54 C84,72 68,86 54,90 C40,86 24,72 24,54 L24,24 C24,24 38,18 54,18 Z" />
+    <!-- Outer Shield Rim -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,22 C67,22 80,27 80,27 L80,54 C80,69 66,82 54,86 C42,82 28,69 28,54 L28,27 C28,27 41,22 54,22 Z" />
+    <!-- Vault Lock Body -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M43,50 L65,50 A3,3 0 0,1 68,53 L68,69 A3,3 0 0,1 65,72 L43,72 A3,3 0 0,1 40,69 L40,53 A3,3 0 0,1 43,50 Z" />
+    <!-- Shackle -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M46,50 L46,44 A8,8 0 0,1 62,44 L62,50" />
+    <!-- Keyhole -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M54,58 A2.5,2.5 0 0,0 52,60.5 L52.5,66 L55.5,66 L56,60.5 A2.5,2.5 0 0,0 54,58 Z" />
+</vector>

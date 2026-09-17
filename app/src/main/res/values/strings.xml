@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">SocialVault</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_add_platform">Add Platform</string>
+    <string name="action_switch_platform">Switch Platform</string>
+    <string name="title_add_platform">Add New Platform</string>
+    <string name="hint_platform_name">Platform Name (e.g. Mastodon)</string>
+    <string name="hint_platform_url">URL (e.g. https://mastodon.social)</string>
+    <string name="btn_add">Add</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_delete">Delete</string>
+    <string name="invalid_url_error">Please enter a valid https:// URL</string>
+</resources>
