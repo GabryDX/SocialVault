@@ -58,6 +58,15 @@
             android:src="@drawable/ic_add"
             android:contentDescription="@string/action_add_platform"
             app:tint="@color/on_surface" />
+
+        <ImageButton
+            android:id="@+id/btnMoreMenu"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_more_vert"
+            android:contentDescription="More options"
+            app:tint="@color/on_surface" />
     </LinearLayout>
 
     <!-- Main Content Area -->
@@ -102,6 +111,16 @@
                     android:layout_height="wrap_content"
                     android:nestedScrollingEnabled="false"
                     tools:listitem="@layout/item_platform_grid" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:layout_marginBottom="16dp"
+                    android:gravity="center"
+                    android:text="💡 Hold &amp; drag cards to reorder • Long-press to remove"
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>

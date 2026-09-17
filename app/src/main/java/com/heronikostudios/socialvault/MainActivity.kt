@@ -20,12 +20,15 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -80,7 +83,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupDashboard() {
         platformAdapter = PlatformAdapter(
-            platforms = platformManager.getAllPlatforms(),
+            platforms = platformManager.getAllPlatforms().toMutableList(),
             onPlatformClick = { platform ->
                 openPlatformInNewTab(platform)
             },
@@ -89,13 +92,69 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+            0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromPos = viewHolder.adapterPosition
+                val toPos = target.adapterPosition
+                if (fromPos != RecyclerView.NO_POSITION && toPos != RecyclerView.NO_POSITION) {
+                    platformAdapter.onItemMove(fromPos, toPos)
+                    platformManager.movePlatform(fromPos, toPos)
+                    return true
+                }
+                return false
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                // Drag only
+            }
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.animate()?.scaleX(1.05f)?.scaleY(1.05f)?.setDuration(150)?.start()
+                }
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start()
+            }
+        })
+
         binding.rvPlatformsGrid.apply {
             layoutManager = GridLayoutManager(this@MainActivity, 2)
             adapter = platformAdapter
         }
+        touchHelper.attachToRecyclerView(binding.rvPlatformsGrid)
 
         binding.btnAddPlatform.setOnClickListener {
             showAddPlatformDialog()
+        }
+
+        binding.btnMoreMenu.setOnClickListener { view ->
+            val popup = PopupMenu(this, view)
+            popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
+            popup.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.menu_add_platform -> {
+                        showAddPlatformDialog()
+                        true
+                    }
+                    R.id.menu_reset_defaults -> {
+                        showResetDefaultsDialog()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            popup.show()
         }
     }
 
@@ -453,11 +512,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDeletePlatformDialog(platform: Platform) {
         MaterialAlertDialogBuilder(this)
-            .setTitle(platform.name)
-            .setMessage("Do you want to delete this custom platform?")
-            .setPositiveButton(R.string.btn_delete) { _, _ ->
-                platformManager.removeCustomPlatform(platform.id)
+            .setTitle("Remove ${platform.name}?")
+            .setMessage("Remove ${platform.name} from your dashboard?\nYou can restore original apps anytime using 'Reset to Defaults'.")
+            .setPositiveButton("Remove") { _, _ ->
+                platformManager.deletePlatform(platform.id)
                 platformAdapter.updatePlatforms(platformManager.getAllPlatforms())
+                Toast.makeText(this, "${platform.name} removed", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun showResetDefaultsDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Reset to Defaults")
+            .setMessage("Reset the dashboard to the default platforms and original order?")
+            .setPositiveButton("Reset") { _, _ ->
+                val defaults = platformManager.resetToDefaults()
+                platformAdapter.updatePlatforms(defaults)
+                Toast.makeText(this, "Dashboard reset to defaults", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()

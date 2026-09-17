@@ -1,5 +1,6 @@
 package com.heronikostudios.socialvault
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +13,7 @@ class PlatformTest {
             id = "tiktok",
             name = "TikTok",
             url = "https://www.tiktok.com",
+            iconType = "tiktok",
             allowedDomains = listOf("tiktok.com", "tiktokcdn.com")
         )
 
@@ -31,11 +33,19 @@ class PlatformTest {
             id = "custom_1",
             name = "Mastodon",
             url = "https://mastodon.social",
+            iconType = "globe",
             isCustom = true
         )
 
         assertTrue(platform.isDomainAllowed("https://mastodon.social/explore"))
         assertTrue(platform.isDomainAllowed("https://files.mastodon.social/media.jpg"))
         assertFalse(platform.isDomainAllowed("https://twitter.com"))
+    }
+
+    @Test
+    fun defaultPlatforms_orderedByPopularity() {
+        val defaults = PlatformManager.DEFAULT_PLATFORMS
+        val expectedOrder = listOf("facebook", "instagram", "tiktok", "reddit", "x", "threads")
+        assertEquals(expectedOrder, defaults.map { it.id })
     }
 }

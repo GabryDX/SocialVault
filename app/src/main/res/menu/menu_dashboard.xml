@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/menu_add_platform"
+        android:icon="@drawable/ic_add"
+        android:title="@string/action_add_platform"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_reset_defaults"
+        android:icon="@drawable/ic_restore"
+        android:title="Reset to Defaults"
+        app:showAsAction="never" />
+</menu>

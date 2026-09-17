@@ -2,20 +2,33 @@ package com.heronikostudios.socialvault
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.core.net.toUri
 import androidx.recyclerview.widget.RecyclerView
 import com.heronikostudios.socialvault.databinding.ItemPlatformGridBinding
 import java.net.URI
+import java.util.Collections
 
 class PlatformAdapter(
-    private var platforms: List<Platform>,
+    private var platforms: MutableList<Platform>,
     private val onPlatformClick: (Platform) -> Unit,
     private val onPlatformLongClick: (Platform) -> Unit
 ) : RecyclerView.Adapter<PlatformAdapter.PlatformViewHolder>() {
 
     fun updatePlatforms(newPlatforms: List<Platform>) {
-        platforms = newPlatforms
+        platforms = newPlatforms.toMutableList()
         notifyDataSetChanged()
+    }
+
+    fun onItemMove(fromPosition: Int, toPosition: Int) {
+        if (fromPosition < toPosition) {
+            for (i in fromPosition until toPosition) {
+                Collections.swap(platforms, i, i + 1)
+            }
+        } else {
+            for (i in fromPosition downTo toPosition + 1) {
+                Collections.swap(platforms, i, i - 1)
+            }
+        }
+        notifyItemMoved(fromPosition, toPosition)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlatformViewHolder {
@@ -52,13 +65,9 @@ class PlatformAdapter(
                 onPlatformClick(platform)
             }
 
-            if (platform.isCustom) {
-                binding.cardPlatform.setOnLongClickListener {
-                    onPlatformLongClick(platform)
-                    true
-                }
-            } else {
-                binding.cardPlatform.setOnLongClickListener(null)
+            binding.cardPlatform.setOnLongClickListener {
+                onPlatformLongClick(platform)
+                true
             }
         }
     }
