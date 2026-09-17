@@ -12,6 +12,12 @@
         android:title="Strip Metadata on Upload"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_download_video"
+        android:icon="@drawable/ic_download"
+        android:title="Download Video from Page"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_reset_defaults"
         android:icon="@drawable/ic_restore"
         android:title="Reset to Defaults"

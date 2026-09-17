@@ -172,6 +172,8 @@ class MainActivity : AppCompatActivity() {
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
             popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
                 platformManager.isStripMetadataEnabled()
+            popup.menu.findItem(R.id.menu_download_video)?.isVisible =
+                (tabManager.activeTab != null)
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_add_platform -> {
@@ -184,6 +186,10 @@ class MainActivity : AppCompatActivity() {
                         item.isChecked = newState
                         val status = if (newState) "enabled (default)" else "disabled"
                         Toast.makeText(this, "Metadata stripping $status", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_download_video -> {
+                        tabManager.activeTab?.webView?.let { extractAndDownloadVideo(it) }
                         true
                     }
                     R.id.menu_reset_defaults -> {
@@ -317,6 +323,58 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(webView, true)
+        }
+
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            DownloadHelper.downloadFile(
+                context = this@MainActivity,
+                url = url,
+                userAgent = userAgent,
+                contentDisposition = contentDisposition,
+                mimeType = mimeType
+            )
+        }
+
+        webView.setOnLongClickListener { v ->
+            val result = (v as? WebView)?.hitTestResult ?: return@setOnLongClickListener false
+            val extra = result.extra
+            when (result.type) {
+                WebView.HitTestResult.IMAGE_TYPE,
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                    if (!extra.isNullOrBlank()) {
+                        DownloadHelper.showMediaContextMenu(
+                            context = this@MainActivity,
+                            mediaUrl = extra,
+                            isImage = true,
+                            userAgent = webView.settings.userAgentString,
+                            onOpenInNewTab = { mediaUrl ->
+                                openMediaInNewTab(mediaUrl)
+                            }
+                        )
+                        true
+                    } else {
+                        false
+                    }
+                }
+                WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                    if (!extra.isNullOrBlank() && DownloadHelper.isMediaUrl(extra)) {
+                        val isImg = !extra.contains(".mp4", ignoreCase = true) && !extra.contains(".webm", ignoreCase = true)
+                        DownloadHelper.showMediaContextMenu(
+                            context = this@MainActivity,
+                            mediaUrl = extra,
+                            isImage = isImg,
+                            userAgent = webView.settings.userAgentString,
+                            onOpenInNewTab = { mediaUrl ->
+                                openMediaInNewTab(mediaUrl)
+                            }
+                        )
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -648,6 +706,53 @@ class MainActivity : AppCompatActivity() {
                 hide(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior =
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+    }
+
+    private fun openMediaInNewTab(mediaUrl: String) {
+        val host = try {
+            Uri.parse(mediaUrl).host?.lowercase() ?: "media"
+        } catch (_: Exception) {
+            "media"
+        }
+        val mediaPlatform = Platform(
+            id = "media_" + UUID.randomUUID().toString().take(8),
+            name = "Media",
+            url = mediaUrl,
+            iconType = "globe",
+            allowedDomains = listOf(host)
+        )
+        openPlatformInNewTab(mediaPlatform)
+    }
+
+    private fun extractAndDownloadVideo(webView: WebView) {
+        val js = """
+            (function() {
+                var videos = document.getElementsByTagName('video');
+                for (var i = 0; i < videos.length; i++) {
+                    var v = videos[i];
+                    if (v.currentSrc && v.currentSrc.startsWith('http')) return v.currentSrc;
+                    if (v.src && v.src.startsWith('http')) return v.src;
+                    var sources = v.getElementsByTagName('source');
+                    for (var j = 0; j < sources.length; j++) {
+                        if (sources[j].src && sources[j].src.startsWith('http')) return sources[j].src;
+                    }
+                }
+                return null;
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js) { result ->
+            val cleanResult = result?.trim('"', ' ', '\n')
+            if (!cleanResult.isNullOrBlank() && cleanResult != "null" && (cleanResult.startsWith("http://") || cleanResult.startsWith("https://"))) {
+                DownloadHelper.downloadFile(
+                    context = this@MainActivity,
+                    url = cleanResult,
+                    userAgent = webView.settings.userAgentString
+                )
+            } else {
+                Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
             }
         }
     }

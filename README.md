@@ -39,8 +39,11 @@ Native social media apps often collect extensive device telemetry, access contac
   - Cleartext HTTP traffic completely blocked (HTTPS enforced).
   - Cloud backups and ADB device extraction disabled.
   - Zero third-party trackers, closed-source analytics, or ad SDKs.
-- **Rich Media & Fullscreen**:
-  - HTML5 video playback with full-screen expansion and automatic landscape rotation.
+- **Rich Media, Downloads & Fullscreen**:
+  - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.
+  - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.
+  - **HTML5 Video Extraction**: Dedicated "Download Video from Page" menu action to inspect and download direct video streams.
+  - Fullscreen HTML5 video playback with automatic landscape rotation.
   - Modern file chooser for media uploads with private sandbox caching.
   - Pull-to-refresh (`SwipeRefreshLayout`) and loading progress indicator.
 - **Modern Android Architecture**:
