@@ -45,7 +45,7 @@ class PlatformTest {
     @Test
     fun defaultPlatforms_orderedByPopularity() {
         val defaults = PlatformManager.DEFAULT_PLATFORMS
-        val expectedOrder = listOf("facebook", "instagram", "tiktok", "reddit", "x", "threads")
+        val expectedOrder = listOf("facebook", "instagram", "tiktok", "reddit", "linkedin", "x", "threads")
         assertEquals(expectedOrder, defaults.map { it.id })
     }
 }

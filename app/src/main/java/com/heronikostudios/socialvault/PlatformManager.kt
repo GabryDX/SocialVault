@@ -19,7 +19,7 @@ class PlatformManager(private val context: Context) {
 
     companion object {
         private const val PREFS_NAME = "social_vault_platforms"
-        private const val KEY_PLATFORMS = "saved_platforms_list_v2"
+        private const val KEY_PLATFORMS = "saved_platforms_list_v3"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -53,6 +53,14 @@ class PlatformManager(private val context: Context) {
                 iconType = "reddit",
                 accentColor = "#FF4500",
                 allowedDomains = listOf("reddit.com", "redd.it", "redditmedia.com")
+            ),
+            Platform(
+                id = "linkedin",
+                name = "LinkedIn",
+                url = "https://www.linkedin.com",
+                iconType = "linkedin",
+                accentColor = "#0A66C2",
+                allowedDomains = listOf("linkedin.com", "licdn.com")
             ),
             Platform(
                 id = "x",

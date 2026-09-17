@@ -17,6 +17,7 @@ data class Platform(
             "instagram" -> R.drawable.ic_platform_instagram
             "tiktok" -> R.drawable.ic_platform_tiktok
             "reddit" -> R.drawable.ic_platform_reddit
+            "linkedin" -> R.drawable.ic_platform_linkedin
             "x" -> R.drawable.ic_platform_x
             "threads" -> R.drawable.ic_platform_threads
             else -> R.drawable.ic_globe
