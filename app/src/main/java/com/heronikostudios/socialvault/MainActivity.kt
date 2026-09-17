@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -25,17 +24,23 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.google.android.material.chip.Chip
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.heronikostudios.socialvault.databinding.ActivityMainBinding
+import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var platformManager: PlatformManager
+    private val tabManager = TabManager()
 
-    private var currentPlatform: Platform? = null
+    private lateinit var platformAdapter: PlatformAdapter
+
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
@@ -57,10 +62,12 @@ class MainActivity : AppCompatActivity() {
         platformManager = PlatformManager(this)
 
         setupInsets()
-        setupWebView()
-        setupTopBar()
+        setupDashboard()
+        setupBottomNav()
         setupBackNavigation()
-        setupPlatformChips()
+        setupTabListener()
+
+        showDashboard()
     }
 
     private fun setupInsets() {
@@ -71,23 +78,134 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupTopBar() {
-        binding.btnRefresh.setOnClickListener {
-            binding.webView.reload()
+    private fun setupDashboard() {
+        platformAdapter = PlatformAdapter(
+            platforms = platformManager.getAllPlatforms(),
+            onPlatformClick = { platform ->
+                openPlatformInNewTab(platform)
+            },
+            onPlatformLongClick = { platform ->
+                showDeletePlatformDialog(platform)
+            }
+        )
+
+        binding.rvPlatformsGrid.apply {
+            layoutManager = GridLayoutManager(this@MainActivity, 2)
+            adapter = platformAdapter
         }
 
         binding.btnAddPlatform.setOnClickListener {
             showAddPlatformDialog()
         }
+    }
 
-        binding.swipeRefresh.setOnRefreshListener {
-            binding.webView.reload()
+    private fun setupBottomNav() {
+        binding.btnNavHome.setOnClickListener {
+            showDashboard()
+        }
+
+        binding.btnNavBack.setOnClickListener {
+            val activeTab = tabManager.activeTab
+            if (activeTab?.webView?.canGoBack() == true) {
+                activeTab.webView.goBack()
+            } else if (activeTab != null) {
+                showDashboard()
+            }
+        }
+
+        binding.btnNavForward.setOnClickListener {
+            tabManager.activeTab?.webView?.let {
+                if (it.canGoForward()) it.goForward()
+            }
+        }
+
+        binding.btnNavRefresh.setOnClickListener {
+            tabManager.activeTab?.webView?.reload()
+        }
+
+        binding.btnNavTabsContainer.setOnClickListener {
+            showTabSwitcherDialog()
         }
     }
 
+    private fun setupTabListener() {
+        tabManager.onTabsChangedListener = {
+            updateTabBadge()
+            updateNavButtons()
+        }
+    }
+
+    private fun updateTabBadge() {
+        binding.tvTabCountBadge.text = tabManager.count.toString()
+    }
+
+    private fun updateNavButtons() {
+        val active = tabManager.activeTab
+        val isInTab = active != null
+
+        val canGoBack = active?.webView?.canGoBack() == true
+        val canGoForward = active?.webView?.canGoForward() == true
+
+        binding.btnNavBack.alpha = if (isInTab) (if (canGoBack) 1.0f else 0.5f) else 0.3f
+        binding.btnNavForward.alpha = if (isInTab && canGoForward) 1.0f else 0.3f
+        binding.btnNavRefresh.alpha = if (isInTab) 1.0f else 0.3f
+
+        binding.btnNavHome.setColorFilter(
+            getColor(if (!isInTab) R.color.accent else R.color.on_surface)
+        )
+    }
+
+    private fun showDashboard() {
+        tabManager.deselectCurrentTab()
+        binding.webViewContainer.visibility = View.GONE
+        binding.dashboardView.visibility = View.VISIBLE
+        binding.tvHeaderTitle.text = getString(R.string.app_name)
+        binding.tvHeaderSubtitle.text = "Private & Sandboxed Social Hub"
+        binding.progressBar.visibility = View.GONE
+        updateNavButtons()
+    }
+
+    private fun openPlatformInNewTab(platform: Platform) {
+        val webView = createConfiguredWebView(platform)
+        val tab = Tab(
+            id = UUID.randomUUID().toString(),
+            platform = platform,
+            webView = webView
+        )
+
+        binding.webViewContainer.addView(
+            webView,
+            0,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        tabManager.addTab(tab)
+        switchToTab(tab)
+        webView.loadUrl(platform.url)
+    }
+
+    private fun switchToTab(tab: Tab) {
+        tabManager.selectTab(tab.id)
+        binding.dashboardView.visibility = View.GONE
+        binding.webViewContainer.visibility = View.VISIBLE
+        binding.tvHeaderTitle.text = tab.platform.name
+        binding.tvHeaderSubtitle.text = tab.platform.url
+        updateNavButtons()
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupWebView() {
-        with(binding.webView.settings) {
+    private fun createConfiguredWebView(platform: Platform): WebView {
+        val webView = WebView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
@@ -98,16 +216,29 @@ class MainActivity : AppCompatActivity() {
 
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            setAcceptThirdPartyCookies(binding.webView, true)
+            setAcceptThirdPartyCookies(webView, true)
         }
 
-        binding.webView.webChromeClient = object : WebChromeClient() {
+        webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress in 1..99) {
-                    binding.progressBar.visibility = View.VISIBLE
-                    binding.progressBar.progress = newProgress
-                } else {
-                    binding.progressBar.visibility = View.GONE
+                if (tabManager.activeTab?.webView == view) {
+                    if (newProgress in 1..99) {
+                        binding.progressBar.visibility = View.VISIBLE
+                        binding.progressBar.progress = newProgress
+                    } else {
+                        binding.progressBar.visibility = View.GONE
+                    }
+                }
+            }
+
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                val currentTab = tabManager.tabs.find { it.webView == view }
+                if (currentTab != null && !title.isNullOrBlank()) {
+                    currentTab.title = title
+                    if (tabManager.activeTab == currentTab) {
+                        binding.tvHeaderTitle.text = title
+                    }
                 }
             }
 
@@ -129,9 +260,8 @@ class MainActivity : AppCompatActivity() {
                     )
                     visibility = View.VISIBLE
                 }
-                binding.swipeRefresh.visibility = View.GONE
                 binding.topBar.visibility = View.GONE
-                binding.chipScrollView.visibility = View.GONE
+                binding.bottomNavBar.visibility = View.GONE
 
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                 setSystemBarsVisible(false)
@@ -163,14 +293,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.webView.webViewClient = object : WebViewClient() {
+        webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
-                val platform = currentPlatform ?: return false
-
                 return if (platform.isDomainAllowed(url)) {
                     false
                 } else {
@@ -184,15 +312,25 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                binding.progressBar.visibility = View.VISIBLE
+                if (tabManager.activeTab?.webView == view) {
+                    binding.progressBar.visibility = View.VISIBLE
+                    updateNavButtons()
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
-                binding.progressBar.visibility = View.GONE
-                binding.swipeRefresh.isRefreshing = false
+                if (!url.isNullOrBlank()) {
+                    tabManager.tabs.find { it.webView == view }?.currentUrl = url
+                }
+                if (tabManager.activeTab?.webView == view) {
+                    binding.progressBar.visibility = View.GONE
+                    updateNavButtons()
+                }
                 CookieManager.getInstance().flush()
             }
         }
+
+        return webView
     }
 
     private fun hideCustomView() {
@@ -201,9 +339,8 @@ class MainActivity : AppCompatActivity() {
             removeView(view)
             visibility = View.GONE
         }
-        binding.swipeRefresh.visibility = View.VISIBLE
         binding.topBar.visibility = View.VISIBLE
-        binding.chipScrollView.visibility = View.VISIBLE
+        binding.bottomNavBar.visibility = View.VISIBLE
 
         customViewCallback?.onCustomViewHidden()
         customView = null
@@ -218,59 +355,73 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 if (customView != null) {
                     hideCustomView()
-                } else if (binding.webView.canGoBack()) {
-                    binding.webView.goBack()
                 } else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                    isEnabled = true
+                    val active = tabManager.activeTab
+                    if (active != null) {
+                        if (active.webView.canGoBack()) {
+                            active.webView.goBack()
+                        } else {
+                            showDashboard()
+                        }
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
+                    }
                 }
             }
         })
     }
 
-    private fun setupPlatformChips() {
-        binding.platformChipGroup.removeAllViews()
-        val platforms = platformManager.getAllPlatforms()
-        val lastSelectedId = platformManager.getLastSelectedPlatformId()
+    private fun showTabSwitcherDialog() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = LayoutTabSwitcherSheetBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
 
-        var selectedChip: Chip? = null
+        lateinit var tabAdapter: TabAdapter
 
-        for (platform in platforms) {
-            val chip = Chip(this).apply {
-                text = platform.name
-                isCheckable = true
-                isClickable = true
-                tag = platform.id
-
-                setOnClickListener {
-                    selectPlatform(platform)
+        tabAdapter = TabAdapter(
+            tabs = tabManager.tabs,
+            activeTabId = tabManager.activeTab?.id,
+            onTabClick = { tab ->
+                switchToTab(tab)
+                dialog.dismiss()
+            },
+            onTabClose = { tab ->
+                val closedTab = tabManager.closeTab(tab.id)
+                if (closedTab != null) {
+                    binding.webViewContainer.removeView(closedTab.webView)
                 }
-
-                if (platform.isCustom) {
-                    setOnLongClickListener {
-                        showDeletePlatformDialog(platform)
-                        true
-                    }
+                if (tabManager.count == 0) {
+                    dialog.dismiss()
+                    showDashboard()
+                } else {
+                    sheetBinding.tvSheetTitle.text = "Open Tabs (${tabManager.count})"
+                    tabAdapter.updateTabs(tabManager.tabs, tabManager.activeTab?.id)
+                    tabManager.activeTab?.let { switchToTab(it) }
                 }
             }
-            binding.platformChipGroup.addView(chip)
+        )
 
-            if (platform.id == lastSelectedId) {
-                selectedChip = chip
-            }
+        sheetBinding.rvTabs.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = tabAdapter
         }
 
-        val targetPlatform = platforms.firstOrNull { it.id == lastSelectedId } ?: platforms.first()
-        (selectedChip ?: binding.platformChipGroup.getChildAt(0) as? Chip)?.isChecked = true
-        selectPlatform(targetPlatform)
-    }
+        sheetBinding.tvSheetTitle.text = "Open Tabs (${tabManager.count})"
+        sheetBinding.tvEmptyTabs.visibility = if (tabManager.count == 0) View.VISIBLE else View.GONE
+        sheetBinding.rvTabs.visibility = if (tabManager.count > 0) View.VISIBLE else View.GONE
 
-    private fun selectPlatform(platform: Platform) {
-        if (currentPlatform?.id == platform.id) return
-        currentPlatform = platform
-        platformManager.setLastSelectedPlatformId(platform.id)
-        binding.webView.loadUrl(platform.url)
+        sheetBinding.btnCloseAll.setOnClickListener {
+            for (tab in tabManager.tabs) {
+                binding.webViewContainer.removeView(tab.webView)
+            }
+            tabManager.closeAllTabs()
+            dialog.dismiss()
+            showDashboard()
+        }
+
+        dialog.show()
     }
 
     private fun showAddPlatformDialog() {
@@ -287,8 +438,8 @@ class MainActivity : AppCompatActivity() {
                 if (name.isNotEmpty() && url.startsWith("https://")) {
                     val newPlatform = platformManager.addCustomPlatform(name, url)
                     if (newPlatform != null) {
-                        setupPlatformChips()
-                        selectPlatform(newPlatform)
+                        platformAdapter.updatePlatforms(platformManager.getAllPlatforms())
+                        openPlatformInNewTab(newPlatform)
                     } else {
                         Toast.makeText(this, R.string.invalid_url_error, Toast.LENGTH_SHORT).show()
                     }
@@ -306,7 +457,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage("Do you want to delete this custom platform?")
             .setPositiveButton(R.string.btn_delete) { _, _ ->
                 platformManager.removeCustomPlatform(platform.id)
-                setupPlatformChips()
+                platformAdapter.updatePlatforms(platformManager.getAllPlatforms())
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
@@ -326,19 +477,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        binding.webView.onResume()
+        tabManager.activeTab?.webView?.onResume()
         CookieManager.getInstance().flush()
     }
 
     override fun onPause() {
         super.onPause()
-        binding.webView.onPause()
+        tabManager.activeTab?.webView?.onPause()
         CookieManager.getInstance().flush()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        binding.webView.destroy()
+        tabManager.closeAllTabs()
         CookieManager.getInstance().flush()
     }
 }

@@ -6,6 +6,8 @@ data class Platform(
     val id: String,
     val name: String,
     val url: String,
+    val iconResId: Int = R.drawable.ic_globe,
+    val accentColor: String = "#0284C7",
     val allowedDomains: List<String> = emptyList(),
     val isCustom: Boolean = false
 ) {

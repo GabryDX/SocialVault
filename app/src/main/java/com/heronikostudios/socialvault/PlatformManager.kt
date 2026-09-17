@@ -14,43 +14,54 @@ class PlatformManager(private val context: Context) {
     companion object {
         private const val PREFS_NAME = "social_vault_platforms"
         private const val KEY_CUSTOM_PLATFORMS = "custom_platforms"
-        private const val KEY_LAST_SELECTED = "last_selected_platform_id"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
                 id = "tiktok",
                 name = "TikTok",
                 url = "https://www.tiktok.com",
+                iconResId = R.drawable.ic_platform_tiktok,
+                accentColor = "#00F2FE",
                 allowedDomains = listOf("tiktok.com", "tiktokcdn.com")
             ),
             Platform(
                 id = "instagram",
                 name = "Instagram",
                 url = "https://www.instagram.com",
+                iconResId = R.drawable.ic_platform_instagram,
+                accentColor = "#E1306C",
                 allowedDomains = listOf("instagram.com", "cdninstagram.com")
             ),
             Platform(
                 id = "x",
                 name = "X",
                 url = "https://x.com",
+                iconResId = R.drawable.ic_platform_x,
+                accentColor = "#F8FAFC",
                 allowedDomains = listOf("x.com", "twitter.com", "twimg.com")
             ),
             Platform(
                 id = "threads",
                 name = "Threads",
                 url = "https://www.threads.net",
+                iconResId = R.drawable.ic_platform_threads,
+                accentColor = "#FFFFFF",
                 allowedDomains = listOf("threads.net")
             ),
             Platform(
                 id = "facebook",
                 name = "Facebook",
                 url = "https://m.facebook.com",
+                iconResId = R.drawable.ic_platform_facebook,
+                accentColor = "#1877F2",
                 allowedDomains = listOf("facebook.com", "fbcdn.net")
             ),
             Platform(
                 id = "reddit",
                 name = "Reddit",
                 url = "https://www.reddit.com",
+                iconResId = R.drawable.ic_platform_reddit,
+                accentColor = "#FF4500",
                 allowedDomains = listOf("reddit.com", "redd.it", "redditmedia.com")
             )
         )
@@ -61,6 +72,10 @@ class PlatformManager(private val context: Context) {
         list.addAll(DEFAULT_PLATFORMS)
         list.addAll(loadCustomPlatforms())
         return list
+    }
+
+    fun getPlatformById(id: String): Platform? {
+        return getAllPlatforms().find { it.id == id }
     }
 
     fun addCustomPlatform(name: String, url: String): Platform? {
@@ -75,7 +90,9 @@ class PlatformManager(private val context: Context) {
             id = "custom_" + UUID.randomUUID().toString().take(8),
             name = name.trim(),
             url = trimmedUrl,
-            allowedDomains = listOf(host.lowercase()),
+            iconResId = R.drawable.ic_globe,
+            accentColor = "#38BDF8",
+            allowedDomains = listOf(host),
             isCustom = true
         )
 
@@ -92,15 +109,6 @@ class PlatformManager(private val context: Context) {
             saveCustomPlatforms(currentCustom)
         }
         return removed
-    }
-
-    fun getLastSelectedPlatformId(): String {
-        return prefs.getString(KEY_LAST_SELECTED, DEFAULT_PLATFORMS.first().id)
-            ?: DEFAULT_PLATFORMS.first().id
-    }
-
-    fun setLastSelectedPlatformId(id: String) {
-        prefs.edit { putString(KEY_LAST_SELECTED, id) }
     }
 
     private fun loadCustomPlatforms(): List<Platform> {
@@ -123,6 +131,8 @@ class PlatformManager(private val context: Context) {
                         id = id,
                         name = name,
                         url = url,
+                        iconResId = R.drawable.ic_globe,
+                        accentColor = "#38BDF8",
                         allowedDomains = if (host.isNotEmpty()) listOf(host) else emptyList(),
                         isCustom = true
                     )
