@@ -61,4 +61,25 @@ class PlatformTest {
         )
         assertEquals(expectedOrder, defaults.map { it.id })
     }
+
+    @Test
+    fun domainAllowed_rejectsNonHttpSchemesAndMalformedUrls() {
+        val platform = Platform(
+            id = "tiktok",
+            name = "TikTok",
+            url = "https://www.tiktok.com",
+            iconType = "tiktok",
+            allowedDomains = listOf("tiktok.com", "tiktokcdn.com")
+        )
+
+        // Non-http schemes must be rejected
+        assertFalse(platform.isDomainAllowed("file://tiktok.com/etc/hosts"))
+        assertFalse(platform.isDomainAllowed("javascript:alert(1)"))
+        assertFalse(platform.isDomainAllowed("content://com.android.providers.media/external"))
+        assertFalse(platform.isDomainAllowed("data:text/html,<h1>test</h1>"))
+
+        // Malformed or query with brackets should not throw and still be allowed if valid host
+        assertTrue(platform.isDomainAllowed("https://tiktok.com/search?q=[music]"))
+        assertFalse(platform.isDomainAllowed("https://evil.com/search?q=[music]"))
+    }
 }

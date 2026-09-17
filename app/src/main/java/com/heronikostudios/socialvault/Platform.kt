@@ -43,9 +43,24 @@ data class Platform(
 
     private fun extractHost(urlString: String): String? {
         return try {
-            URI(urlString).host?.lowercase()
+            val uri = URI(urlString)
+            val scheme = uri.scheme?.lowercase()
+            if (scheme != null && scheme != "http" && scheme != "https") {
+                return null
+            }
+            uri.host?.lowercase()
         } catch (_: Exception) {
-            null
+            try {
+                val base = urlString.substringBefore('?').substringBefore('#')
+                val uri = URI(base)
+                val scheme = uri.scheme?.lowercase()
+                if (scheme != null && scheme != "http" && scheme != "https") {
+                    return null
+                }
+                uri.host?.lowercase()
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 }

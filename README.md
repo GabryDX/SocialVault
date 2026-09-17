@@ -1,7 +1,9 @@
 # SocialVault 🛡️
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![API](https://img.shields.io/badge/API-23%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=23)
+[![FOSS Audit](https://img.shields.io/badge/FOSS%20Audit-100%25%20Compliant-brightgreen.svg)](foss_audit.md)
+[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened-blue.svg)](security_audit.md)
+[![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
 
 An open-source, privacy-first multi-platform social media vault and sandboxed web wrapper for Android.
 
@@ -43,7 +45,7 @@ Native social media apps often collect extensive device telemetry, access contac
 - **Modern Android Architecture**:
   - 100% Kotlin with View Binding and AndroidX libraries.
   - Material 3 theming with Android 13+ Material You themed adaptive icons.
-  - Target SDK 37 (Android 16), Min SDK 23 (Android 6.0+).
+  - Target SDK 37 (Android 16), Min SDK 24 (Android 7.0+).
 
 ---
 
@@ -66,6 +68,14 @@ Native social media apps often collect extensive device telemetry, access contac
 # Run tests and lint:
 ./gradlew check lint
 ```
+
+---
+
+## 🛡️ FOSS & Security Compliance
+
+SocialVault has undergone rigorous open-source compliance and defensive security audits:
+- **[FOSS Compliance Audit](foss_audit.md)**: Independent repository inclusion audit covering dependencies, licensing (100% Apache 2.0 / Free Software), zero binary blobs, and zero telemetry trackers.
+- **[Security Architecture & Vulnerability Audit](security_audit.md)**: OWASP Mobile Application Security Verification Standard (MASVS v2.0) audit covering WebView sandboxing, intent sanitization, least privilege permissions, and data extraction protection.
 
 ---
 

@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -256,7 +257,7 @@ class MainActivity : AppCompatActivity() {
         updateNavButtons()
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "MissingOnRenderProcessGone")
     private fun createConfiguredWebView(platform: Platform): WebView {
         val webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -272,6 +273,8 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            allowFileAccess = false
+            allowContentAccess = false
         }
 
         CookieManager.getInstance().apply {
@@ -358,17 +361,61 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
-                val url = request?.url?.toString() ?: return false
-                return if (platform.isDomainAllowed(url)) {
-                    false
-                } else {
-                    try {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    } catch (_: Exception) {
-                        Toast.makeText(this@MainActivity, "Cannot open external link", Toast.LENGTH_SHORT).show()
+                val uri = request?.url ?: return false
+                val url = uri.toString()
+                val scheme = uri.scheme?.lowercase() ?: return false
+
+                // Disallow dangerous, file, or script schemes from navigating or external launching
+                if (scheme == "file" || scheme == "content" || scheme == "javascript" || scheme == "data") {
+                    return true
+                }
+
+                // If it is an allowed web URL within the platform sandbox, continue loading in WebView
+                if ((scheme == "http" || scheme == "https") && platform.isDomainAllowed(url)) {
+                    return false
+                }
+
+                // Safely dispatch external URLs to system handlers
+                return try {
+                    when (scheme) {
+                        "http", "https" -> {
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                            }
+                            startActivity(intent)
+                            true
+                        }
+                        "intent" -> {
+                            val parsedIntent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME).apply {
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                                component = null
+                                selector = null
+                            }
+                            startActivity(parsedIntent)
+                            true
+                        }
+                        "mailto", "tel", "sms", "market" -> {
+                            val intent = Intent(Intent.ACTION_VIEW, uri)
+                            startActivity(intent)
+                            true
+                        }
+                        else -> false
                     }
+                } catch (_: Exception) {
+                    Toast.makeText(this@MainActivity, "Cannot open external link", Toast.LENGTH_SHORT).show()
                     true
                 }
+            }
+
+            override fun onRenderProcessGone(
+                view: WebView?,
+                detail: RenderProcessGoneDetail?
+            ): Boolean {
+                view?.let { wv ->
+                    (wv.parent as? ViewGroup)?.removeView(wv)
+                    wv.destroy()
+                }
+                return true
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
