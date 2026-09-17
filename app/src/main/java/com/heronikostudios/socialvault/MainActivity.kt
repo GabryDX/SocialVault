@@ -52,8 +52,34 @@ class MainActivity : AppCompatActivity() {
     private val fileChooserLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
-            fileUploadCallback?.onReceiveValue(uris)
-            fileUploadCallback = null
+            if (uris != null && uris.isNotEmpty() && platformManager.isStripMetadataEnabled()) {
+                binding.progressBar.visibility = View.VISIBLE
+                Thread {
+                    var strippedCount = 0
+                    val processedUris = uris.map { uri ->
+                        val res = MetadataStripper.stripImageMetadata(this, uri)
+                        if (res.wasStripped) strippedCount++
+                        res.uri
+                    }.toTypedArray()
+
+                    runOnUiThread {
+                        binding.progressBar.visibility = View.GONE
+                        if (strippedCount > 0) {
+                            val msg = if (strippedCount == 1) {
+                                "EXIF metadata stripped from photo"
+                            } else {
+                                "EXIF metadata stripped from $strippedCount photos"
+                            }
+                            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                        }
+                        fileUploadCallback?.onReceiveValue(processedUris)
+                        fileUploadCallback = null
+                    }
+                }.start()
+            } else {
+                fileUploadCallback?.onReceiveValue(uris)
+                fileUploadCallback = null
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +90,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         platformManager = PlatformManager(this)
+        Thread { MetadataStripper.cleanOldCache(this) }.start()
 
         setupInsets()
         setupDashboard()
@@ -143,10 +170,20 @@ class MainActivity : AppCompatActivity() {
         binding.btnMoreMenu.setOnClickListener { view ->
             val popup = PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
+            popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
+                platformManager.isStripMetadataEnabled()
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_add_platform -> {
                         showAddPlatformDialog()
+                        true
+                    }
+                    R.id.menu_strip_metadata -> {
+                        val newState = !platformManager.isStripMetadataEnabled()
+                        platformManager.setStripMetadataEnabled(newState)
+                        item.isChecked = newState
+                        val status = if (newState) "enabled (default)" else "disabled"
+                        Toast.makeText(this, "Metadata stripping $status", Toast.LENGTH_SHORT).show()
                         true
                     }
                     R.id.menu_reset_defaults -> {
@@ -274,7 +311,7 @@ class MainActivity : AppCompatActivity() {
             loadWithOverviewMode = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             allowFileAccess = false
-            allowContentAccess = false
+            allowContentAccess = true
         }
 
         CookieManager.getInstance().apply {

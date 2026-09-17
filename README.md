@@ -35,12 +35,13 @@ Native social media apps often collect extensive device telemetry, access contac
 - **Custom Platforms**: Add any website or web app with a simple `+` button, managed with local persistence.
 - **Strict Privacy Sandboxing**:
   - Whitelisted domain isolation per platform: links leading to external domains are safely opened in your system's default browser.
+  - **Automatic EXIF Metadata Scrubbing**: Strips GPS coordinates, device identifiers, timestamps, and camera metadata from photos before uploading. Orientation is normalized so photos remain upright. Enabled by default and toggleable via dashboard menu.
   - Cleartext HTTP traffic completely blocked (HTTPS enforced).
   - Cloud backups and ADB device extraction disabled.
   - Zero third-party trackers, closed-source analytics, or ad SDKs.
 - **Rich Media & Fullscreen**:
   - HTML5 video playback with full-screen expansion and automatic landscape rotation.
-  - Modern file chooser for media uploads.
+  - Modern file chooser for media uploads with private sandbox caching.
   - Pull-to-refresh (`SwipeRefreshLayout`) and loading progress indicator.
 - **Modern Android Architecture**:
   - 100% Kotlin with View Binding and AndroidX libraries.

@@ -20,6 +20,7 @@ class PlatformManager(private val context: Context) {
     companion object {
         private const val PREFS_NAME = "social_vault_platforms"
         private const val KEY_PLATFORMS = "saved_platforms_list_v4"
+        private const val KEY_STRIP_METADATA = "pref_strip_metadata"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -179,6 +180,14 @@ class PlatformManager(private val context: Context) {
         currentPlatforms.addAll(DEFAULT_PLATFORMS)
         savePlatforms()
         return getAllPlatforms()
+    }
+
+    fun isStripMetadataEnabled(): Boolean {
+        return prefs.getBoolean(KEY_STRIP_METADATA, true)
+    }
+
+    fun setStripMetadataEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_STRIP_METADATA, enabled) }
     }
 
     private fun loadPlatforms() {

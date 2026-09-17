@@ -21,6 +21,7 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
 * **Zero Cleartext Traffic:** TLS enforced across all network layers via `android:usesCleartextTraffic="false"`.
 * **Renderer Crash Resilience:** Full implementation of `onRenderProcessGone` to gracefully isolate and terminate crashed render processes without compromising the host application.
 * **Principle of Least Privilege:** Zero dangerous runtime permissions required (no camera, audio, contacts, location, or storage permissions). Only `android.permission.INTERNET` declared.
+* **Automatic EXIF Metadata Scrubbing:** Embedded `MetadataStripper` sanitizes photos prior to web uploads (removing GPS coordinates, camera hardware serials, and timestamps while normalizing orientation).
 * **Backup & Data Extraction Protection:** Strict rules blocking cloud backups and ADB transfers (`allowBackup="false"`, `data_extraction_rules.xml`, `backup_rules.xml`).
 
 ---

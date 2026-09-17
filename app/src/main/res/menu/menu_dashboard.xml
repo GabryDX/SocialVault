@@ -7,6 +7,11 @@
         android:title="@string/action_add_platform"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_strip_metadata"
+        android:checkable="true"
+        android:title="Strip Metadata on Upload"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_reset_defaults"
         android:icon="@drawable/ic_restore"
         android:title="Reset to Defaults"
