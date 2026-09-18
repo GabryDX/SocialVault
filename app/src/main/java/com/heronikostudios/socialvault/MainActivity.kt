@@ -5,11 +5,15 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import kotlin.math.hypot
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
@@ -105,10 +109,7 @@ class MainActivity : AppCompatActivity() {
         setupBackNavigation()
         setupTabListener()
 
-        binding.btnExitFullScreen.setOnClickListener {
-            platformManager.setFullScreenEnabled(false)
-            applyFullScreenMode(false, showToast = true)
-        }
+        setupFullScreenExitButton()
 
         showDashboard()
         handleIncomingIntent(intent)
@@ -881,6 +882,9 @@ class MainActivity : AppCompatActivity() {
         if (enabled && tabManager.activeTab != null) {
             binding.topBar.visibility = View.GONE
             binding.bottomNavBar.visibility = View.GONE
+            binding.cardExitFullScreen.translationX = 0f
+            binding.cardExitFullScreen.translationY = 0f
+            binding.cardExitFullScreen.alpha = 0.45f
             binding.cardExitFullScreen.visibility = View.VISIBLE
             // Keep the system navigation bar (bottom buttons) visible while hiding status bar
             WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -902,6 +906,66 @@ class MainActivity : AppCompatActivity() {
             if (showToast) {
                 Toast.makeText(this, R.string.toast_full_screen_disabled, Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupFullScreenExitButton() {
+        val card = binding.cardExitFullScreen
+        var dX = 0f
+        var dY = 0f
+        var isDragging = false
+        var startX = 0f
+        var startY = 0f
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+
+        card.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dX = view.x - event.rawX
+                    dY = view.y - event.rawY
+                    startX = event.rawX
+                    startY = event.rawY
+                    isDragging = false
+                    view.animate().alpha(1.0f).setDuration(150).start()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val distance = hypot(event.rawX - startX, event.rawY - startY)
+                    if (distance > touchSlop) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        val parent = view.parent as? View
+                        if (parent != null && parent.width > view.width && parent.height > view.height) {
+                            val minX = 0f
+                            val maxX = (parent.width - view.width).toFloat()
+                            val minY = 0f
+                            val maxY = (parent.height - view.height).toFloat()
+                            view.x = (event.rawX + dX).coerceIn(minX, maxX)
+                            view.y = (event.rawY + dY).coerceIn(minY, maxY)
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isDragging) {
+                        view.performClick()
+                    }
+                    view.animate().alpha(0.45f).setDuration(300).start()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    view.animate().alpha(0.45f).setDuration(300).start()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        card.setOnClickListener {
+            platformManager.setFullScreenEnabled(false)
+            applyFullScreenMode(false, showToast = true)
         }
     }
 
@@ -1078,6 +1142,14 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (isFullScreenMode) {
+            binding.cardExitFullScreen.translationX = 0f
+            binding.cardExitFullScreen.translationY = 0f
         }
     }
 
