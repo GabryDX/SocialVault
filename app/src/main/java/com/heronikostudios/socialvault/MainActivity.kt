@@ -35,6 +35,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.heronikostudios.socialvault.databinding.ActivityMainBinding
 import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
 import java.util.UUID
@@ -782,6 +783,15 @@ class MainActivity : AppCompatActivity() {
     private fun showOpenUrlDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_open_url, null)
         val etOpenUrl = dialogView.findViewById<TextInputEditText>(R.id.etOpenUrl)
+        val tilUrl = dialogView.findViewById<TextInputLayout>(R.id.tilUrl)
+
+        if (platformManager.isPolishUrlsEnabled()) {
+            tilUrl.isHelperTextEnabled = true
+            tilUrl.helperText = getString(R.string.helper_url_cleaning)
+        } else {
+            tilUrl.helperText = null
+            tilUrl.isHelperTextEnabled = false
+        }
 
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         val clipData = clipboard?.primaryClip
