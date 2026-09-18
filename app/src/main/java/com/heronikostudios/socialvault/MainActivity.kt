@@ -16,6 +16,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import kotlin.math.hypot
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -573,6 +574,14 @@ class MainActivity : AppCompatActivity() {
                     fileUploadCallback = null
                     false
                 }
+            }
+
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                // Explicit defense-in-depth: disallow web geolocation requests unconditionally
+                callback?.invoke(origin, false, false)
             }
         }
 

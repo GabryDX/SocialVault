@@ -22,7 +22,9 @@ data class YouTubeStreamItem(
             val clean = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
                 .replace(Regex("\\s+"), " ")
                 .trim()
-            val baseName = if (clean.isNotBlank()) clean else "youtube_download_${System.currentTimeMillis()}"
+                .trimStart('.')
+            val truncated = clean.take(100).trim().trimEnd('.')
+            val baseName = if (truncated.isNotBlank()) truncated else "youtube_download_${System.currentTimeMillis()}"
             return "$baseName.$fileExtension"
         }
 }

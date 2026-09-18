@@ -53,7 +53,12 @@ object DownloadHelper {
         }
 
         val fileName = if (!customFileName.isNullOrBlank()) {
-            customFileName
+            val sanitized = customFileName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                .trim()
+                .trimStart('.')
+                .take(120)
+                .trimEnd('.')
+            if (sanitized.isNotBlank()) sanitized else "download_${System.currentTimeMillis()}"
         } else {
             try {
                 URLUtil.guessFileName(trimmedUrl, contentDisposition, mimeType)

@@ -64,6 +64,25 @@ class YouTubeStreamHelperTest {
             isAudio = false
         )
         assertTrue(blankItem.safeFileName.endsWith(".mp4"))
+
+        val leadingDotItem = YouTubeStreamItem(
+            title = "...hidden_file...",
+            resolution = "720p",
+            formatName = "MP4",
+            url = "https://example.com/stream.mp4",
+            isAudio = false
+        )
+        assertEquals("hidden_file.mp4", leadingDotItem.safeFileName)
+
+        val longTitle = "A".repeat(200)
+        val longItem = YouTubeStreamItem(
+            title = longTitle,
+            resolution = "720p",
+            formatName = "MP4",
+            url = "https://example.com/stream.mp4",
+            isAudio = false
+        )
+        assertTrue(longItem.safeFileName.length <= 105)
     }
 
     @Test
