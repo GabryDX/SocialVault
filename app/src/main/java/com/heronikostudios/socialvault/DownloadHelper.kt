@@ -24,7 +24,8 @@ object DownloadHelper {
         url: String,
         userAgent: String? = null,
         contentDisposition: String? = null,
-        mimeType: String? = null
+        mimeType: String? = null,
+        cookieManager: CookieManager? = null
     ) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.startsWith("data:image/")) {
@@ -63,7 +64,8 @@ object DownloadHelper {
                 }
 
                 // Preserve session cookies for authenticated social media media requests
-                val cookies = CookieManager.getInstance().getCookie(trimmedUrl)
+                val cm = cookieManager ?: CookieManager.getInstance()
+                val cookies = cm.getCookie(trimmedUrl)
                 if (!cookies.isNullOrBlank()) {
                     addRequestHeader("cookie", cookies)
                 }
@@ -151,6 +153,7 @@ object DownloadHelper {
         mediaUrl: String,
         isImage: Boolean = true,
         userAgent: String? = null,
+        cookieManager: CookieManager? = null,
         onOpenInNewTab: (String) -> Unit
     ) {
         val title = if (isImage) "Image Options" else "Media Options"
@@ -165,7 +168,7 @@ object DownloadHelper {
             .setTitle(title)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> downloadFile(context, mediaUrl, userAgent = userAgent)
+                    0 -> downloadFile(context, mediaUrl, userAgent = userAgent, cookieManager = cookieManager)
                     1 -> onOpenInNewTab(mediaUrl)
                     2 -> {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager

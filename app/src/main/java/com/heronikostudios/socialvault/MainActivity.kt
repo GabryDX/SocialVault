@@ -24,6 +24,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
+import androidx.webkit.ProfileStore
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -361,6 +364,13 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        val cookieManager = PlatformStorageManager.getCookieManagerForPlatform(platform)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            val profileName = PlatformStorageManager.getProfileName(platform)
+            val profile = ProfileStore.getInstance().getOrCreateProfile(profileName)
+            WebViewCompat.setProfile(webView, profile.name)
+        }
+
         with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -372,7 +382,7 @@ class MainActivity : AppCompatActivity() {
             allowContentAccess = true
         }
 
-        CookieManager.getInstance().apply {
+        cookieManager.apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(webView, true)
         }
@@ -383,7 +393,8 @@ class MainActivity : AppCompatActivity() {
                 url = url,
                 userAgent = userAgent,
                 contentDisposition = contentDisposition,
-                mimeType = mimeType
+                mimeType = mimeType,
+                cookieManager = cookieManager
             )
         }
 
@@ -399,6 +410,7 @@ class MainActivity : AppCompatActivity() {
                             mediaUrl = extra,
                             isImage = true,
                             userAgent = webView.settings.userAgentString,
+                            cookieManager = cookieManager,
                             onOpenInNewTab = { mediaUrl ->
                                 openMediaInNewTab(mediaUrl)
                             }
@@ -416,6 +428,7 @@ class MainActivity : AppCompatActivity() {
                             mediaUrl = extra,
                             isImage = isImg,
                             userAgent = webView.settings.userAgentString,
+                            cookieManager = cookieManager,
                             onOpenInNewTab = { mediaUrl ->
                                 openMediaInNewTab(mediaUrl)
                             }
@@ -760,7 +773,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(getString(R.string.dialog_clear_cache_title, platform.name))
             .setMessage(getString(R.string.dialog_clear_cache_msg, platform.name))
             .setPositiveButton(R.string.btn_clear_cache) { _, _ ->
-                PlatformStorageManager.clearCacheForPlatform(platform, tabManager.tabs)
+                PlatformStorageManager.clearCacheForPlatform(this, platform, tabManager.tabs)
                 Toast.makeText(this, getString(R.string.toast_cache_cleared, platform.name), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.btn_cancel, null)
@@ -772,7 +785,20 @@ class MainActivity : AppCompatActivity() {
             .setTitle(getString(R.string.dialog_wipe_data_title, platform.name))
             .setMessage(getString(R.string.dialog_wipe_data_msg, platform.name))
             .setPositiveButton(R.string.btn_wipe_data) { _, _ ->
-                PlatformStorageManager.wipeDataForPlatform(platform, tabManager.tabs) {
+                val matchingTabs = tabManager.tabs.filter { it.platform.id == platform.id }
+                for (tab in matchingTabs) {
+                    tabManager.closeTab(tab.id)
+                }
+
+                if (tabManager.activeTab == null) {
+                    binding.dashboardView.visibility = View.VISIBLE
+                    binding.webViewContainer.visibility = View.GONE
+                    binding.tvHeaderTitle.text = getString(R.string.app_name)
+                    binding.tvHeaderSubtitle.text = getString(R.string.desc_open_social_link)
+                    updateNavButtons()
+                }
+
+                PlatformStorageManager.wipeDataForPlatform(this, platform) {
                     runOnUiThread {
                         Toast.makeText(this, getString(R.string.toast_data_wiped, platform.name), Toast.LENGTH_SHORT).show()
                     }

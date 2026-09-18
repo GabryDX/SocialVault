@@ -1,9 +1,30 @@
 package com.heronikostudios.socialvault
 
+import androidx.webkit.WebViewFeature
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlatformStorageManagerTest {
+
+    @Test
+    fun testMultiProfileApiAvailability() {
+        assertNotNull(WebViewFeature.MULTI_PROFILE)
+        assertEquals("MULTI_PROFILE", WebViewFeature.MULTI_PROFILE)
+    }
+
+    @Test
+    fun getProfileName_derivesCleanAndUniqueNames() {
+        val yt = Platform(id = "youtube", name = "YouTube", url = "https://m.youtube.com")
+        assertEquals("sv_profile_youtube", PlatformStorageManager.getProfileName(yt))
+
+        val ig = Platform(id = "instagram", name = "Instagram", url = "https://www.instagram.com")
+        assertEquals("sv_profile_instagram", PlatformStorageManager.getProfileName(ig))
+
+        val custom = Platform(id = "custom-site.org#1", name = "Custom", url = "https://custom.org")
+        assertEquals("sv_profile_custom_site_org_1", PlatformStorageManager.getProfileName(custom))
+    }
 
     @Test
     fun getCandidateDomains_resolvesRootAndSubdomainsForInstagram() {
@@ -45,7 +66,7 @@ class PlatformStorageManagerTest {
     }
 
     @Test
-    fun getCandidateDomains_resolvesYouTubeDomains() {
+    fun getCandidateDomains_resolvesYouTubeDomainsAndGoogleAuth() {
         val platform = Platform(
             id = "youtube",
             name = "YouTube",
@@ -60,6 +81,11 @@ class PlatformStorageManagerTest {
         assertTrue(domains.contains("m.youtube.com"))
         assertTrue(domains.contains("www.youtube.com"))
         assertTrue(domains.contains("youtu.be"))
+        // Check Google authentication & consent domains needed for complete logout
+        assertTrue(domains.contains("google.com"))
+        assertTrue(domains.contains("accounts.google.com"))
+        assertTrue(domains.contains("consent.youtube.com"))
+        assertTrue(domains.contains("consent.google.com"))
     }
 
     @Test

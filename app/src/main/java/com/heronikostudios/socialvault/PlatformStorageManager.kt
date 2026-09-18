@@ -1,14 +1,40 @@
 package com.heronikostudios.socialvault
 
+import android.content.Context
 import android.webkit.CookieManager
 import android.webkit.WebStorage
+import android.webkit.WebView
+import androidx.webkit.ProfileStore
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import java.net.URI
 
 object PlatformStorageManager {
 
     /**
+     * Derives a valid Chromium profile name uniquely identifying the platform container.
+     */
+    fun getProfileName(platform: Platform): String {
+        val cleanId = platform.id.lowercase().replace(Regex("[^a-z0-9_]"), "_")
+        return "sv_profile_$cleanId"
+    }
+
+    /**
+     * Returns the isolated CookieManager for this platform if Multi-Profile is supported,
+     * or the default system CookieManager as fallback.
+     */
+    fun getCookieManagerForPlatform(platform: Platform): CookieManager {
+        return if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            val profileName = getProfileName(platform)
+            ProfileStore.getInstance().getOrCreateProfile(profileName).cookieManager
+        } else {
+            CookieManager.getInstance()
+        }
+    }
+
+    /**
      * Resolves all possible domain variations (root, www, m, mobile, etc.) for a platform
-     * based on its allowedDomains and primary entry URL.
+     * based on its allowedDomains and primary entry URL, including authentication origins.
      */
     fun getCandidateDomains(platform: Platform): Set<String> {
         val domains = mutableSetOf<String>()
@@ -38,6 +64,15 @@ object PlatformStorageManager {
             domains.add("m.$mainHost")
         }
 
+        if (platform.id == "youtube") {
+            domains.add("google.com")
+            domains.add("www.google.com")
+            domains.add("accounts.google.com")
+            domains.add("myaccount.google.com")
+            domains.add("consent.google.com")
+            domains.add("consent.youtube.com")
+        }
+
         return domains
     }
 
@@ -45,44 +80,76 @@ object PlatformStorageManager {
      * Clears temporary disk and memory cache for the specified platform without
      * removing session cookies or authentication tokens.
      */
-    fun clearCacheForPlatform(platform: Platform, openTabs: List<Tab>) {
+    fun clearCacheForPlatform(context: Context, platform: Platform, openTabs: List<Tab>) {
         val platformTabs = openTabs.filter { it.platform.id == platform.id }
-        for (tab in platformTabs) {
-            tab.webView.clearCache(true)
-            tab.webView.evaluateJavascript("""
-                try {
-                    if (window.caches && window.caches.keys) {
-                        window.caches.keys().then(function(keys) {
-                            keys.forEach(function(k) { window.caches.delete(k); });
-                        });
-                    }
-                } catch(e) {}
-            """.trimIndent(), null)
+        if (platformTabs.isNotEmpty()) {
+            for (tab in platformTabs) {
+                tab.webView.clearCache(true)
+                tab.webView.evaluateJavascript("""
+                    (function() {
+                        try {
+                            if (window.caches && window.caches.keys) {
+                                window.caches.keys().then(function(keys) {
+                                    keys.forEach(function(k) { window.caches.delete(k); });
+                                });
+                            }
+                        } catch(e) {}
+                    })();
+                """.trimIndent(), null)
+            }
+        } else {
+            try {
+                val tempWebView = WebView(context)
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                    val profileName = getProfileName(platform)
+                    val profile = ProfileStore.getInstance().getOrCreateProfile(profileName)
+                    WebViewCompat.setProfile(tempWebView, profile.name)
+                }
+                tempWebView.clearCache(true)
+                tempWebView.destroy()
+            } catch (_: Exception) {}
         }
     }
 
     /**
      * Completely wipes all data for a single social media platform:
-     * - Clears cookies for all platform domain variations (expiring them immediately)
-     * - Deletes WebStorage (LocalStorage, SessionStorage, WebSQL) origins matching the platform
-     * - Deletes IndexedDB and CacheStorage databases via JavaScript
-     * - Purges WebView memory/disk cache, form data, and history for open tabs
-     * - Resets open tabs to the clean platform entry URL
+     * - Deletes the entire isolated Multi-Profile container (cookies, LocalStorage LevelDB,
+     *   IndexedDB, Service Workers, CacheStorage, HTTP cache).
+     * - Also scrubs legacy/default CookieManager and WebStorage origins to clear any
+     *   pre-existing sessions or fallback data.
      */
     fun wipeDataForPlatform(
+        context: Context,
         platform: Platform,
-        openTabs: List<Tab>,
         onComplete: (() -> Unit)? = null
     ) {
-        // 1. Expire cookies for all domain variants
-        val cookieManager = CookieManager.getInstance()
+        // 1. Multi-Profile: physically purge profile container from disk
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            val profileStore = ProfileStore.getInstance()
+            val profileName = getProfileName(platform)
+            try {
+                if (profileStore.allProfileNames.contains(profileName)) {
+                    profileStore.deleteProfile(profileName)
+                }
+            } catch (_: Exception) {
+                try {
+                    val profile = profileStore.getOrCreateProfile(profileName)
+                    profile.cookieManager.removeAllCookies(null)
+                    profile.cookieManager.flush()
+                    profile.webStorage.deleteAllData()
+                } catch (_: Exception) {}
+            }
+        }
+
+        // 2. Legacy / Default Profile: expire domain cookies across all protocol and flag variations
+        val defaultCookieManager = CookieManager.getInstance()
         val domains = getCandidateDomains(platform)
 
         for (domain in domains) {
             val urls = listOf("https://$domain", "http://$domain")
             for (url in urls) {
                 val cookieStr = try {
-                    cookieManager.getCookie(url)
+                    defaultCookieManager.getCookie(url)
                 } catch (_: Exception) {
                     null
                 }
@@ -91,16 +158,19 @@ object PlatformStorageManager {
                     for (pair in pairs) {
                         val name = pair.substringBefore('=').trim()
                         if (name.isNotEmpty()) {
-                            cookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
-                            cookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=$domain")
-                            cookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.$domain")
+                            defaultCookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
+                            defaultCookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=$domain")
+                            defaultCookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.$domain")
+                            defaultCookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None")
+                            defaultCookieManager.setCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=Lax")
                         }
                     }
                 }
             }
         }
-        cookieManager.flush()
+        defaultCookieManager.flush()
 
+        // 3. Clear WebStorage origins matching the platform in default storage
         val webStorage = WebStorage.getInstance()
         webStorage.getOrigins { origins ->
             origins?.keys?.forEach { originKey ->
@@ -111,37 +181,6 @@ object PlatformStorageManager {
                     }
                 }
             }
-        }
-
-        // 3. Clear open WebViews (cache, form data, history, DOM storage) and reload to base URL
-        val platformTabs = openTabs.filter { it.platform.id == platform.id }
-        for (tab in platformTabs) {
-            tab.webView.clearCache(true)
-            tab.webView.clearFormData()
-            tab.webView.clearHistory()
-            tab.webView.evaluateJavascript("""
-                (function() {
-                    try { localStorage.clear(); } catch(e) {}
-                    try { sessionStorage.clear(); } catch(e) {}
-                    try {
-                        if (window.indexedDB && window.indexedDB.databases) {
-                            window.indexedDB.databases().then(function(dbs) {
-                                dbs.forEach(function(db) {
-                                    if (db.name) window.indexedDB.deleteDatabase(db.name);
-                                });
-                            });
-                        }
-                    } catch(e) {}
-                    try {
-                        if (window.caches && window.caches.keys) {
-                            window.caches.keys().then(function(keys) {
-                                keys.forEach(function(k) { window.caches.delete(k); });
-                            });
-                        }
-                    } catch(e) {}
-                })();
-            """.trimIndent(), null)
-            tab.webView.loadUrl(platform.url)
         }
 
         onComplete?.invoke()
