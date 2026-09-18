@@ -1,6 +1,7 @@
 package com.heronikostudios.socialvault
 
 import android.annotation.SuppressLint
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -188,6 +189,15 @@ class MainActivity : AppCompatActivity() {
         }
         touchHelper.attachToRecyclerView(binding.rvPlatformsGrid)
 
+        binding.btnShareLink.setOnClickListener {
+            shareCurrentLink(copyOnly = false)
+        }
+
+        binding.btnShareLink.setOnLongClickListener {
+            shareCurrentLink(copyOnly = true)
+            true
+        }
+
         binding.btnOpenLink.setOnClickListener {
             showOpenUrlDialog()
         }
@@ -199,17 +209,18 @@ class MainActivity : AppCompatActivity() {
         binding.btnMoreMenu.setOnClickListener { view ->
             val popup = PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
+            val isTabOpen = (tabManager.activeTab != null)
             val activePlatform = tabManager.activeTab?.platform
+            popup.menu.findItem(R.id.menu_share_link)?.isVisible = isTabOpen
+            popup.menu.findItem(R.id.menu_copy_link)?.isVisible = isTabOpen
             popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
                 platformManager.isStripMetadataEnabled()
             popup.menu.findItem(R.id.menu_polish_urls)?.isChecked =
                 platformManager.isPolishUrlsEnabled()
             popup.menu.findItem(R.id.menu_full_screen)?.apply {
-                val isTabOpen = (tabManager.activeTab != null)
                 isChecked = if (isTabOpen) isFullScreenMode else platformManager.isFullScreenEnabled()
             }
-            popup.menu.findItem(R.id.menu_download_video)?.isVisible =
-                (tabManager.activeTab != null)
+            popup.menu.findItem(R.id.menu_download_video)?.isVisible = isTabOpen
             popup.menu.findItem(R.id.menu_clear_cache)?.apply {
                 isVisible = (activePlatform != null)
                 if (activePlatform != null) {
@@ -224,6 +235,14 @@ class MainActivity : AppCompatActivity() {
             }
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
+                    R.id.menu_share_link -> {
+                        shareCurrentLink(copyOnly = false)
+                        true
+                    }
+                    R.id.menu_copy_link -> {
+                        shareCurrentLink(copyOnly = true)
+                        true
+                    }
                     R.id.menu_open_url -> {
                         showOpenUrlDialog()
                         true
@@ -345,6 +364,9 @@ class MainActivity : AppCompatActivity() {
         applyFullScreenMode(false)
         binding.webViewContainer.visibility = View.GONE
         binding.dashboardView.visibility = View.VISIBLE
+        binding.btnShareLink.visibility = View.GONE
+        binding.btnOpenLink.visibility = View.VISIBLE
+        binding.btnAddPlatform.visibility = View.VISIBLE
         binding.tvHeaderTitle.text = getString(R.string.app_name)
         binding.tvHeaderSubtitle.text = "Private & Sandboxed Social Hub"
         binding.progressBar.visibility = View.GONE
@@ -380,6 +402,9 @@ class MainActivity : AppCompatActivity() {
         tabManager.selectTab(tab.id)
         binding.dashboardView.visibility = View.GONE
         binding.webViewContainer.visibility = View.VISIBLE
+        binding.btnShareLink.visibility = View.VISIBLE
+        binding.btnOpenLink.visibility = View.GONE
+        binding.btnAddPlatform.visibility = View.GONE
         binding.tvHeaderTitle.text = tab.platform.name
         binding.tvHeaderSubtitle.text = tab.platform.url
         updateNavButtons()
@@ -834,11 +859,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (tabManager.activeTab == null) {
-                    binding.dashboardView.visibility = View.VISIBLE
-                    binding.webViewContainer.visibility = View.GONE
-                    binding.tvHeaderTitle.text = getString(R.string.app_name)
-                    binding.tvHeaderSubtitle.text = getString(R.string.desc_open_social_link)
-                    updateNavButtons()
+                    showDashboard()
                 }
 
                 PlatformStorageManager.wipeDataForPlatform(this, platform) {
@@ -1142,6 +1163,42 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun shareCurrentLink(copyOnly: Boolean = false) {
+        val currentTab = tabManager.activeTab
+        if (currentTab == null) {
+            Toast.makeText(this, R.string.toast_no_link_to_share, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentUrl = currentTab.webView.url ?: currentTab.currentUrl
+        if (currentUrl.isNullOrBlank()) {
+            Toast.makeText(this, R.string.toast_no_link_to_share, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val urlToShare = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(currentUrl).polishedUrl
+        } else {
+            currentUrl
+        }
+
+        if (copyOnly) {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val clip = ClipData.newPlainText("Clean Link", urlToShare)
+            clipboard?.setPrimaryClip(clip)
+            Toast.makeText(this, R.string.toast_clean_link_copied, Toast.LENGTH_SHORT).show()
+        } else {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, urlToShare)
+                val pageTitle = currentTab.webView.title
+                if (!pageTitle.isNullOrBlank()) {
+                    putExtra(Intent.EXTRA_SUBJECT, pageTitle)
+                }
+            }
+            startActivity(Intent.createChooser(shareIntent, getString(R.string.share_link_chooser_title)))
         }
     }
 

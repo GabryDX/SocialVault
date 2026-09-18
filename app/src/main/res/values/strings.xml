@@ -36,4 +36,9 @@
     <string name="btn_exit_full_screen">Exit Full Screen</string>
     <string name="toast_full_screen_enabled">Full Screen Mode enabled (native app view)</string>
     <string name="toast_full_screen_disabled">Full Screen Mode disabled</string>
+    <string name="action_share_link">Share Clean Link</string>
+    <string name="action_copy_clean_link">Copy Clean Link</string>
+    <string name="share_link_chooser_title">Share Clean Link via</string>
+    <string name="toast_clean_link_copied">Clean link copied to clipboard</string>
+    <string name="toast_no_link_to_share">No active webpage link to share</string>
 </resources>
