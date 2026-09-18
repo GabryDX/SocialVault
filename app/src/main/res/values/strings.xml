@@ -31,4 +31,9 @@
     <string name="toast_cache_cleared">Cache cleared for %s</string>
     <string name="toast_data_wiped">All data wiped for %s (logged out)</string>
     <string name="action_remove_platform">Remove from Dashboard</string>
+    <string name="menu_full_screen">Full Screen Mode</string>
+    <string name="action_exit_full_screen">Exit Full Screen Mode</string>
+    <string name="btn_exit_full_screen">Exit Full Screen</string>
+    <string name="toast_full_screen_enabled">Full Screen Mode enabled (native app view)</string>
+    <string name="toast_full_screen_disabled">Full Screen Mode disabled</string>
 </resources>

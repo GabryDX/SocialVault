@@ -49,6 +49,7 @@ Native social media apps often collect extensive device telemetry, access contac
   - **Clear Cache for Platform**: Purges temporary disk and RAM cache and media buffers for a specific social network without logging you out.
   - **Wipe Data (Log Out)**: Surgically removes cookies, LocalStorage, SessionStorage, IndexedDB, and cache for that single social media platform without touching your other accounts, logins, or app settings. Accessible both from the dashboard card options and directly from the tab's active menu.
 - **Rich Media, Downloads & Fullscreen**:
+  - **Immersive Native App Full Screen Mode**: Navigate any social media platform edge-to-edge as if using the native application. Hides the top app bar, bottom navigation bar, and system chrome for an uninterrupted viewing experience. Includes a sleek floating 'Exit Full Screen' pill, system back gesture exit integration, and a toggle in the dashboard menu.
   - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.
   - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.
   - **HTML5 Video Extraction**: Dedicated "Download Video from Page" menu action to inspect and download direct video streams.

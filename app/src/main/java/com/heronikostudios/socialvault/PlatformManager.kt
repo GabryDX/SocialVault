@@ -22,6 +22,7 @@ class PlatformManager(private val context: Context) {
         private const val KEY_PLATFORMS = "saved_platforms_list_v4"
         private const val KEY_STRIP_METADATA = "pref_strip_metadata"
         private const val KEY_POLISH_URLS = "pref_polish_urls"
+        private const val KEY_FULL_SCREEN = "pref_full_screen_mode"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -211,6 +212,14 @@ class PlatformManager(private val context: Context) {
 
     fun setPolishUrlsEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_POLISH_URLS, enabled) }
+    }
+
+    fun isFullScreenEnabled(): Boolean {
+        return prefs.getBoolean(KEY_FULL_SCREEN, false)
+    }
+
+    fun setFullScreenEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_FULL_SCREEN, enabled) }
     }
 
     fun findMatchingPlatform(targetUrl: String): Platform? {

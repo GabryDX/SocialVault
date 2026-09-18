@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
+    private var isFullScreenMode: Boolean = false
 
     private val fileChooserLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -104,6 +105,11 @@ class MainActivity : AppCompatActivity() {
         setupBackNavigation()
         setupTabListener()
 
+        binding.btnExitFullScreen.setOnClickListener {
+            platformManager.setFullScreenEnabled(false)
+            applyFullScreenMode(false, showToast = true)
+        }
+
         showDashboard()
         handleIncomingIntent(intent)
     }
@@ -116,8 +122,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            if (isFullScreenMode && tabManager.activeTab != null) {
+                view.setPadding(0, 0, 0, 0)
+            } else {
+                val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            }
             insets
         }
     }
@@ -192,6 +202,10 @@ class MainActivity : AppCompatActivity() {
                 platformManager.isStripMetadataEnabled()
             popup.menu.findItem(R.id.menu_polish_urls)?.isChecked =
                 platformManager.isPolishUrlsEnabled()
+            popup.menu.findItem(R.id.menu_full_screen)?.apply {
+                val isTabOpen = (tabManager.activeTab != null)
+                isChecked = if (isTabOpen) isFullScreenMode else platformManager.isFullScreenEnabled()
+            }
             popup.menu.findItem(R.id.menu_download_video)?.isVisible =
                 (tabManager.activeTab != null)
             popup.menu.findItem(R.id.menu_clear_cache)?.apply {
@@ -230,6 +244,19 @@ class MainActivity : AppCompatActivity() {
                         item.isChecked = newState
                         val status = if (newState) "enabled (default)" else "disabled"
                         Toast.makeText(this, "URL polishing $status", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_full_screen -> {
+                        val isTabOpen = (tabManager.activeTab != null)
+                        val newState = if (isTabOpen) !isFullScreenMode else !platformManager.isFullScreenEnabled()
+                        platformManager.setFullScreenEnabled(newState)
+                        item.isChecked = newState
+                        if (isTabOpen) {
+                            applyFullScreenMode(newState, showToast = true)
+                        } else {
+                            val msg = if (newState) getString(R.string.toast_full_screen_enabled) else getString(R.string.toast_full_screen_disabled)
+                            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                        }
                         true
                     }
                     R.id.menu_download_video -> {
@@ -313,6 +340,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDashboard() {
         tabManager.deselectCurrentTab()
+        applyFullScreenMode(false)
         binding.webViewContainer.visibility = View.GONE
         binding.dashboardView.visibility = View.VISIBLE
         binding.tvHeaderTitle.text = getString(R.string.app_name)
@@ -353,6 +381,11 @@ class MainActivity : AppCompatActivity() {
         binding.tvHeaderTitle.text = tab.platform.name
         binding.tvHeaderSubtitle.text = tab.platform.url
         updateNavButtons()
+        if (platformManager.isFullScreenEnabled()) {
+            applyFullScreenMode(true)
+        } else {
+            applyFullScreenMode(false)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "MissingOnRenderProcessGone")
@@ -614,7 +647,13 @@ class MainActivity : AppCompatActivity() {
         customViewCallback = null
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        setSystemBarsVisible(true)
+        if (isFullScreenMode && tabManager.activeTab != null) {
+            applyFullScreenMode(true)
+        } else {
+            binding.topBar.visibility = View.VISIBLE
+            binding.bottomNavBar.visibility = View.VISIBLE
+            setSystemBarsVisible(true)
+        }
     }
 
     private fun setupBackNavigation() {
@@ -627,6 +666,8 @@ class MainActivity : AppCompatActivity() {
                     if (active != null) {
                         if (active.webView.canGoBack()) {
                             active.webView.goBack()
+                        } else if (isFullScreenMode) {
+                            applyFullScreenMode(false, showToast = true)
                         } else {
                             showDashboard()
                         }
@@ -832,6 +873,29 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
+    }
+
+    private fun applyFullScreenMode(enabled: Boolean, showToast: Boolean = false) {
+        isFullScreenMode = enabled
+        if (enabled && tabManager.activeTab != null) {
+            binding.topBar.visibility = View.GONE
+            binding.bottomNavBar.visibility = View.GONE
+            binding.cardExitFullScreen.visibility = View.VISIBLE
+            setSystemBarsVisible(false)
+            ViewCompat.requestApplyInsets(binding.rootLayout)
+            if (showToast) {
+                Toast.makeText(this, R.string.toast_full_screen_enabled, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            binding.topBar.visibility = View.VISIBLE
+            binding.bottomNavBar.visibility = View.VISIBLE
+            binding.cardExitFullScreen.visibility = View.GONE
+            setSystemBarsVisible(true)
+            ViewCompat.requestApplyInsets(binding.rootLayout)
+            if (showToast) {
+                Toast.makeText(this, R.string.toast_full_screen_disabled, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun setSystemBarsVisible(visible: Boolean) {
