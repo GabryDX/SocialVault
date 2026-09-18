@@ -25,7 +25,8 @@ object DownloadHelper {
         userAgent: String? = null,
         contentDisposition: String? = null,
         mimeType: String? = null,
-        cookieManager: CookieManager? = null
+        cookieManager: CookieManager? = null,
+        customFileName: String? = null
     ) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.startsWith("data:image/")) {
@@ -51,10 +52,14 @@ object DownloadHelper {
             return
         }
 
-        val fileName = try {
-            URLUtil.guessFileName(trimmedUrl, contentDisposition, mimeType)
-        } catch (_: Exception) {
-            "download_${System.currentTimeMillis()}"
+        val fileName = if (!customFileName.isNullOrBlank()) {
+            customFileName
+        } else {
+            try {
+                URLUtil.guessFileName(trimmedUrl, contentDisposition, mimeType)
+            } catch (_: Exception) {
+                "download_${System.currentTimeMillis()}"
+            }
         }
 
         try {

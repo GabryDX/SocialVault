@@ -1142,9 +1142,18 @@ class MainActivity : AppCompatActivity() {
                 currentUrl.contains("youtube.com", ignoreCase = true) ||
                 currentUrl.contains("youtu.be", ignoreCase = true)
 
+        if (isYouTube) {
+            webView.evaluateJavascript("window.location.href") { locResult ->
+                val jsUrl = locResult?.trim('"', ' ', '\n')?.takeIf { it.startsWith("http") }
+                val effectiveUrl = jsUrl ?: webView.url ?: currentTab?.currentUrl ?: ""
+                handleYouTubeDownload(effectiveUrl)
+            }
+            return
+        }
+
         val js = """
             (function() {
-                // 1. Try standard video elements (Instagram, TikTok, Twitter/X, Reddit, etc.)
+                // Try standard video elements (Instagram, TikTok, Twitter/X, Reddit, etc.)
                 var videos = document.getElementsByTagName('video');
                 for (var i = 0; i < videos.length; i++) {
                     var v = videos[i];
@@ -1155,19 +1164,6 @@ class MainActivity : AppCompatActivity() {
                         if (sources[j].src && sources[j].src.startsWith('http')) return sources[j].src;
                     }
                 }
-
-                // 2. Try in-page YouTube player response if an unenciphered stream is available
-                try {
-                    var p = window.ytInitialPlayerResponse || 
-                            (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && JSON.parse(window.ytplayer.config.args.player_response));
-                    if (p && p.streamingData && p.streamingData.formats) {
-                        for (var k = 0; k < p.streamingData.formats.length; k++) {
-                            var f = p.streamingData.formats[k];
-                            if (f.url && f.url.startsWith('http')) return f.url;
-                        }
-                    }
-                } catch(e) {}
-
                 return null;
             })();
         """.trimIndent()
@@ -1180,20 +1176,77 @@ class MainActivity : AppCompatActivity() {
                     url = cleanResult,
                     userAgent = webView.settings.userAgentString
                 )
-            } else if (isYouTube && currentUrl.isNotBlank()) {
-                showYouTubeDownloadOptions(currentUrl)
             } else {
                 Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun showYouTubeDownloadOptions(videoUrl: String) {
+    private fun handleYouTubeDownload(videoUrl: String) {
         val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
             UrlPolisher.polishUrl(videoUrl).polishedUrl
         } else {
             videoUrl
         }
+
+        if (!YouTubeStreamHelper.isYouTubeVideoUrl(cleanUrl)) {
+            Toast.makeText(this, R.string.yt_no_video_open, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        Toast.makeText(this, R.string.yt_extracting_streams, Toast.LENGTH_SHORT).show()
+
+        Thread {
+            val result = YouTubeStreamHelper.extractStreams(cleanUrl)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (result.isSuccess) {
+                    val items = result.getOrNull()
+                    if (!items.isNullOrEmpty()) {
+                        showYouTubeStreamSelectionDialog(items, cleanUrl)
+                    } else {
+                        showYouTubeDownloadOptions(cleanUrl, isFallback = true)
+                    }
+                } else {
+                    showYouTubeDownloadOptions(cleanUrl, isFallback = true)
+                }
+            }
+        }.start()
+    }
+
+    private fun showYouTubeStreamSelectionDialog(items: List<YouTubeStreamItem>, videoUrl: String) {
+        val videoTitle = items.first().title
+        val displayOptions = items.map { "${it.resolution} • ${it.formatName}" }.toMutableList()
+        displayOptions.add(getString(R.string.yt_option_more_external))
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(videoTitle)
+            .setItems(displayOptions.toTypedArray()) { _, which ->
+                if (which < items.size) {
+                    val selectedItem = items[which]
+                    DownloadHelper.downloadFile(
+                        context = this@MainActivity,
+                        url = selectedItem.url,
+                        userAgent = tabManager.activeTab?.webView?.settings?.userAgentString,
+                        mimeType = selectedItem.mimeType,
+                        customFileName = selectedItem.safeFileName
+                    )
+                } else {
+                    showYouTubeDownloadOptions(videoUrl, isFallback = false)
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun showYouTubeDownloadOptions(videoUrl: String, isFallback: Boolean = false) {
+        val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(videoUrl).polishedUrl
+        } else {
+            videoUrl
+        }
+
+        val messageRes = if (isFallback) R.string.yt_extract_failed else R.string.yt_download_message
 
         val options = arrayOf(
             getString(R.string.yt_download_cobalt),
@@ -1203,7 +1256,7 @@ class MainActivity : AppCompatActivity() {
 
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.yt_download_title)
-            .setMessage(R.string.yt_download_message)
+            .setMessage(messageRes)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {

@@ -47,4 +47,9 @@
     <string name="yt_download_external_app">Open with Downloader App (Seal, NewPipe…)</string>
     <string name="yt_download_copy_link">Copy Clean Video Link</string>
     <string name="yt_download_chooser_title">Download video with…</string>
+    <string name="yt_extracting_streams">Resolving YouTube video streams…</string>
+    <string name="yt_select_quality_title">Select Download Quality</string>
+    <string name="yt_option_more_external">More options / External app…</string>
+    <string name="yt_no_video_open">Please open a YouTube video to download it</string>
+    <string name="yt_extract_failed">Could not extract video streams directly. Choose an alternative:</string>
 </resources>

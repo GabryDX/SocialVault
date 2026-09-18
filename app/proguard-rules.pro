@@ -16,6 +16,16 @@
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
+# If you keep the line information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# NewPipeExtractor & Rhino JS engine
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.tools.**
+-dontwarn org.schabi.newpipe.extractor.**
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
