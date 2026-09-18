@@ -185,6 +185,8 @@ class MainActivity : AppCompatActivity() {
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
             popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
                 platformManager.isStripMetadataEnabled()
+            popup.menu.findItem(R.id.menu_polish_urls)?.isChecked =
+                platformManager.isPolishUrlsEnabled()
             popup.menu.findItem(R.id.menu_download_video)?.isVisible =
                 (tabManager.activeTab != null)
             popup.setOnMenuItemClickListener { item ->
@@ -203,6 +205,14 @@ class MainActivity : AppCompatActivity() {
                         item.isChecked = newState
                         val status = if (newState) "enabled (default)" else "disabled"
                         Toast.makeText(this, "Metadata stripping $status", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_polish_urls -> {
+                        val newState = !platformManager.isPolishUrlsEnabled()
+                        platformManager.setPolishUrlsEnabled(newState)
+                        item.isChecked = newState
+                        val status = if (newState) "enabled (default)" else "disabled"
+                        Toast.makeText(this, "URL polishing $status", Toast.LENGTH_SHORT).show()
                         true
                     }
                     R.id.menu_download_video -> {
@@ -652,9 +662,14 @@ class MainActivity : AppCompatActivity() {
         val etUrl = dialogView.findViewById<TextInputEditText>(R.id.etUrl)
 
         if (!prefilledUrl.isNullOrBlank()) {
-            etUrl.setText(prefilledUrl)
+            val cleanPrefill = if (platformManager.isPolishUrlsEnabled()) {
+                UrlPolisher.polishUrl(prefilledUrl).polishedUrl
+            } else {
+                prefilledUrl
+            }
+            etUrl.setText(cleanPrefill)
             val host = try {
-                Uri.parse(prefilledUrl).host?.removePrefix("www.")?.removePrefix("m.") ?: ""
+                Uri.parse(cleanPrefill).host?.removePrefix("www.")?.removePrefix("m.") ?: ""
             } catch (_: Exception) {
                 ""
             }
@@ -668,7 +683,12 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .setPositiveButton(R.string.btn_add) { _, _ ->
                 val name = etName.text?.toString().orEmpty().trim()
-                val url = etUrl.text?.toString().orEmpty().trim()
+                val rawUrl = etUrl.text?.toString().orEmpty().trim()
+                val url = if (platformManager.isPolishUrlsEnabled()) {
+                    UrlPolisher.polishUrl(rawUrl).polishedUrl
+                } else {
+                    rawUrl
+                }
 
                 if (name.isNotEmpty() && url.startsWith("https://")) {
                     val newPlatform = platformManager.addCustomPlatform(name, url)
@@ -770,7 +790,12 @@ class MainActivity : AppCompatActivity() {
             if (!clipText.isNullOrBlank()) {
                 val candidate = extractUrlFromText(clipText) ?: if (clipText.startsWith("http://", ignoreCase = true) || clipText.startsWith("https://", ignoreCase = true)) clipText else null
                 if (candidate != null) {
-                    etOpenUrl.setText(candidate)
+                    val cleanCandidate = if (platformManager.isPolishUrlsEnabled()) {
+                        UrlPolisher.polishUrl(candidate).polishedUrl
+                    } else {
+                        candidate
+                    }
+                    etOpenUrl.setText(cleanCandidate)
                     etOpenUrl.selectAll()
                 }
             }
@@ -790,23 +815,38 @@ class MainActivity : AppCompatActivity() {
 
     private fun openSocialUrlIfSupported(rawUrl: String): Boolean {
         val normalizedUrl = platformManager.normalizeUrl(rawUrl)
-        val matchedPlatform = platformManager.findMatchingPlatform(normalizedUrl)
+        val urlToOpen = if (platformManager.isPolishUrlsEnabled()) {
+            val result = UrlPolisher.polishUrl(normalizedUrl)
+            if (result.wasPolished) {
+                val count = result.removedParams.size
+                val msg = if (count == 1) {
+                    "Polished URL (removed 1 tracking parameter)"
+                } else {
+                    "Polished URL (removed $count tracking parameters)"
+                }
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            }
+            result.polishedUrl
+        } else {
+            normalizedUrl
+        }
+        val matchedPlatform = platformManager.findMatchingPlatform(urlToOpen)
 
         return if (matchedPlatform != null) {
-            openPlatformInNewTab(matchedPlatform, normalizedUrl)
+            openPlatformInNewTab(matchedPlatform, urlToOpen)
             true
         } else {
             val host = try {
-                Uri.parse(normalizedUrl).host ?: normalizedUrl
+                Uri.parse(urlToOpen).host ?: urlToOpen
             } catch (_: Exception) {
-                normalizedUrl
+                urlToOpen
             }
             MaterialAlertDialogBuilder(this)
                 .setTitle("Unsupported Platform")
                 .setMessage("The link ($host) is not from a supported social platform. SocialVault only opens supported platforms to isolate sessions and protect your privacy.")
                 .setPositiveButton("OK", null)
                 .setNeutralButton("Add as Custom Platform") { _, _ ->
-                    showAddPlatformDialog(normalizedUrl)
+                    showAddPlatformDialog(urlToOpen)
                 }
                 .show()
             false

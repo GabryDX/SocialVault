@@ -40,9 +40,10 @@ Native social media apps often collect extensive device telemetry, access contac
   - Cloud backups and ADB device extraction disabled.
   - Zero third-party trackers, closed-source analytics, or ad SDKs.
 - **Deep Linking, Share Target & Link Opener**:
-  - **In-App "Open Social Link"**: Quick-paste dialog with clipboard auto-detection. Validates URLs strictly against supported social platforms—rejects unsupported domains to preserve sandbox isolation.
-  - **Direct Deep Linking (`ACTION_VIEW`)**: Open Instagram Reels, TikTok videos, YouTube clips, Tweets, and other social links directly from messaging apps (e.g. WhatsApp, Telegram, Signal) inside SocialVault.
-  - **Android Share Target (`ACTION_SEND`)**: Share text or links from any Android app into SocialVault to open them in their dedicated, sandboxed tab.
+  - **Integrated URL Polishing (Tracking & Telemetry Stripping)**: Inspired by Léon / ClearURLs, incoming links (from WhatsApp, external apps, or pasted in-app) are automatically sanitized before opening. Strips tracking tokens (e.g. `igsh` on Instagram, `_t`/`_r`/`sender_device` on TikTok, `si` on YouTube, `s`/`t` on X, `mibextid`/`fbclid` on Facebook, `utm_*`, `gclid`, and more) while strictly preserving functional video IDs and timestamps (`v`, `t`, `start`, `list`). Enabled by default and toggleable via the dashboard menu.
+  - **In-App "Open Social Link"**: Quick-paste dialog with clipboard auto-detection and automatic link polishing. Validates URLs strictly against supported social platforms—rejects unsupported domains to preserve sandbox isolation.
+  - **Direct Deep Linking (`ACTION_VIEW`)**: Open Instagram Reels, TikTok videos, YouTube clips, Tweets, and other social links directly from messaging apps (e.g. WhatsApp, Telegram, Signal) inside SocialVault with instant link polishing.
+  - **Android Share Target (`ACTION_SEND`)**: Share text or links from any Android app into SocialVault to open them in their dedicated, sandboxed tab with tracking parameters stripped.
   - **Short-Link Resolution**: Built-in support for platform short domains (`instagr.am`, `vm.tiktok.com`, `vt.tiktok.com`, `youtu.be`, `t.co`, `fb.watch`, `fb.me`, `pin.it`, `lnkd.in`, `redd.it`).
 - **Rich Media, Downloads & Fullscreen**:
   - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.

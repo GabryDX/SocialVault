@@ -15,4 +15,6 @@
     <string name="desc_open_social_link">Paste a link to open it in a private sandboxed tab. Only links from supported social platforms will be opened.</string>
     <string name="hint_social_media_url">Social Media URL</string>
     <string name="btn_open">Open</string>
+    <string name="menu_polish_urls">Polish URLs on Open</string>
+    <string name="helper_url_cleaning">Tracking parameters (e.g. ?igsh=, ?si=) are stripped automatically</string>
 </resources>

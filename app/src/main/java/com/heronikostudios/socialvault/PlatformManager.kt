@@ -21,6 +21,7 @@ class PlatformManager(private val context: Context) {
         private const val PREFS_NAME = "social_vault_platforms"
         private const val KEY_PLATFORMS = "saved_platforms_list_v4"
         private const val KEY_STRIP_METADATA = "pref_strip_metadata"
+        private const val KEY_POLISH_URLS = "pref_polish_urls"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -202,6 +203,14 @@ class PlatformManager(private val context: Context) {
 
     fun setStripMetadataEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_STRIP_METADATA, enabled) }
+    }
+
+    fun isPolishUrlsEnabled(): Boolean {
+        return prefs.getBoolean(KEY_POLISH_URLS, true)
+    }
+
+    fun setPolishUrlsEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_POLISH_URLS, enabled) }
     }
 
     fun findMatchingPlatform(targetUrl: String): Platform? {

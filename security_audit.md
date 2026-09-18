@@ -22,6 +22,7 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
 * **Renderer Crash Resilience:** Full implementation of `onRenderProcessGone` to gracefully isolate and terminate crashed render processes without compromising the host application.
 * **Principle of Least Privilege:** Zero dangerous runtime permissions required (no camera, audio, contacts, location, or storage permissions). Only `android.permission.INTERNET` declared.
 * **Automatic EXIF Metadata Scrubbing:** Embedded `MetadataStripper` sanitizes photos prior to web uploads (removing GPS coordinates, camera hardware serials, and timestamps while normalizing orientation).
+* **Pre-Execution URL Polishing & Tracking Stripping:** Native `UrlPolisher` scrubs universal and platform-specific tracking parameters (e.g. `igsh`, `_t`, `_r`, `si`, `s`, `t`, `mibextid`, `fbclid`, `utm_*`) before links are loaded or stored, preventing user linkage and cross-service telemetry.
 * **Scoped Downloads & Storage Isolation:** File downloads leverage the Android system `DownloadManager` targeting public `Environment.DIRECTORY_DOWNLOADS` with zero shared storage permissions on Android 10+ (scoped storage compliance).
 * **Backup & Data Extraction Protection:** Strict rules blocking cloud backups and ADB transfers (`allowBackup="false"`, `data_extraction_rules.xml`, `backup_rules.xml`).
 
@@ -159,6 +160,11 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
   *Clipboard contents are sanitized and validated with regex URL extraction before population in the paste dialog.*  
   *`MainActivity` declares `android:launchMode="singleTask"`, ensuring that external links route cleanly into the running task via `onNewIntent` and preventing task hijacking or duplicate process leaks.*
 
+* **Criterion 5: Pre-Execution URL Polishing & Tracking Token Stripping.**  
+  *All external and in-app pasted URLs are sanitized via `UrlPolisher.polishUrl()` before being loaded into WebViews or stored in custom platform configurations.*  
+  *Universal tracking parameters (`utm_*`, `fbclid`, `gclid`, `twclid`, `msclkid`, etc.) and platform-specific referral/share IDs (`igsh` on Instagram, `_t`/`_r`/`sender_device` on TikTok, `si` on YouTube, `s`/`t` on X, `mibextid` on Facebook, `rcm` on LinkedIn) are stripped while strictly preserving functional video identifiers and timestamps (`v`, `t`, `start`, `list`).*  
+  *This eliminates persistent user tracking tokens shared across messaging applications (e.g. WhatsApp, Telegram).*
+
 ---
 
 ### MASVS-CODE: Code Quality & Build Configurations
@@ -231,6 +237,18 @@ JAVA_HOME=/home/trollo/.jdks/jdk-21.0.12.1+1 ANDROID_HOME=/home/trollo/AndroidSD
   <testcase name="findMatchingPlatform_rejectsUnsupportedDomains"/>
   <testcase name="defaultPlatforms_orderedByPopularity"/>
   <testcase name="customPlatform_allowedDomainsDerivedFromUrl"/>
+</testsuite>
+<testsuite name="com.heronikostudios.socialvault.UrlPolisherTest" tests="10" skipped="0" failures="0" errors="0">
+  <testcase name="polishUrl_removesInstagramTracking"/>
+  <testcase name="polishUrl_leavesCleanUrlsUnchanged"/>
+  <testcase name="polishUrl_removesYouTubeTrackingWhilePreservingFunctionalParams"/>
+  <testcase name="polishUrl_handlesUrlWithoutScheme"/>
+  <testcase name="polishUrl_removesThreadsAndLinkedInTracking"/>
+  <testcase name="polishUrl_removesFacebookTrackingWhilePreservingVideoId"/>
+  <testcase name="polishUrl_removesTwitterXTracking"/>
+  <testcase name="polishUrl_removesTikTokTracking"/>
+  <testcase name="polishUrl_removesRedditTracking"/>
+  <testcase name="polishUrl_removesUniversalTrackingParameters"/>
 </testsuite>
 <testsuite name="com.heronikostudios.socialvault.DownloadHelperTest" tests="2" skipped="0" failures="0" errors="0">
   <testcase name="isMediaUrl_rejectsNonMediaUrls"/>
