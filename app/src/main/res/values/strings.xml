@@ -17,4 +17,18 @@
     <string name="btn_open">Open</string>
     <string name="menu_polish_urls">Polish URLs on Open</string>
     <string name="helper_url_cleaning">Tracking parameters (e.g. ?igsh=, ?si=) are stripped automatically</string>
+    <string name="action_open_new_tab">Open in New Tab</string>
+    <string name="action_clear_cache">Clear Cache</string>
+    <string name="action_wipe_data">Wipe Data (Log Out)</string>
+    <string name="action_clear_cache_app">Clear Cache for this App</string>
+    <string name="action_wipe_data_app">Wipe Data for this App (Log Out)</string>
+    <string name="dialog_clear_cache_title">Clear Cache for %s?</string>
+    <string name="dialog_clear_cache_msg">Delete temporary web cache and media files for %s? Your login session and settings will remain intact.</string>
+    <string name="dialog_wipe_data_title">Wipe All Data for %s?</string>
+    <string name="dialog_wipe_data_msg">Delete all cookies, storage, offline databases, and cache for %s? You will be logged out of this platform.</string>
+    <string name="btn_clear_cache">Clear Cache</string>
+    <string name="btn_wipe_data">Wipe Data</string>
+    <string name="toast_cache_cleared">Cache cleared for %s</string>
+    <string name="toast_data_wiped">All data wiped for %s (logged out)</string>
+    <string name="action_remove_platform">Remove from Dashboard</string>
 </resources>

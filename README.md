@@ -45,6 +45,9 @@ Native social media apps often collect extensive device telemetry, access contac
   - **Direct Deep Linking (`ACTION_VIEW`)**: Open Instagram Reels, TikTok videos, YouTube clips, Tweets, and other social links directly from messaging apps (e.g. WhatsApp, Telegram, Signal) inside SocialVault with instant link polishing.
   - **Android Share Target (`ACTION_SEND`)**: Share text or links from any Android app into SocialVault to open them in their dedicated, sandboxed tab with tracking parameters stripped.
   - **Short-Link Resolution**: Built-in support for platform short domains (`instagr.am`, `vm.tiktok.com`, `vt.tiktok.com`, `youtu.be`, `t.co`, `fb.watch`, `fb.me`, `pin.it`, `lnkd.in`, `redd.it`).
+- **Granular Per-Platform Cache & Data Management**:
+  - **Clear Cache for Platform**: Purges temporary disk and RAM cache and media buffers for a specific social network without logging you out.
+  - **Wipe Data (Log Out)**: Surgically removes cookies, LocalStorage, SessionStorage, IndexedDB, and cache for that single social media platform without touching your other accounts, logins, or app settings. Accessible both from the dashboard card options and directly from the tab's active menu.
 - **Rich Media, Downloads & Fullscreen**:
   - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.
   - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.

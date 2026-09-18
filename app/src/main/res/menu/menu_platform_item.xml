@@ -2,8 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/action_open_tab"
-        android:title="Open in New Tab" />
+        android:title="@string/action_open_new_tab" />
+    <item
+        android:id="@+id/action_clear_cache"
+        android:title="@string/action_clear_cache" />
+    <item
+        android:id="@+id/action_wipe_data"
+        android:title="@string/action_wipe_data" />
     <item
         android:id="@+id/action_remove_platform"
-        android:title="Remove from Dashboard" />
+        android:title="@string/action_remove_platform" />
 </menu>

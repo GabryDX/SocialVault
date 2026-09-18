@@ -25,6 +25,7 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
 * **Pre-Execution URL Polishing & Tracking Stripping:** Native `UrlPolisher` scrubs universal and platform-specific tracking parameters (e.g. `igsh`, `_t`, `_r`, `si`, `s`, `t`, `mibextid`, `fbclid`, `utm_*`) before links are loaded or stored, preventing user linkage and cross-service telemetry.
 * **Scoped Downloads & Storage Isolation:** File downloads leverage the Android system `DownloadManager` targeting public `Environment.DIRECTORY_DOWNLOADS` with zero shared storage permissions on Android 10+ (scoped storage compliance).
 * **Backup & Data Extraction Protection:** Strict rules blocking cloud backups and ADB transfers (`allowBackup="false"`, `data_extraction_rules.xml`, `backup_rules.xml`).
+* **Granular Per-Platform Data Wiping & Storage Sanitization:** Dedicated `PlatformStorageManager` enables surgical data wipes (cookies, DOM storage, IndexedDB, CacheStorage) and cache clearance per platform without cross-contaminating other authenticated services or requiring full app resets.
 
 ---
 
@@ -99,6 +100,9 @@ SocialVault is an Android sandboxed web client designed to provide isolated, pri
   ```
 * **Criterion 3: Keyboard and cache leakage.**  
   *Form autofill and cache are handled under sandbox boundaries. No sensitive text logged to Logcat.*
+* **Criterion 4: Granular per-platform cache clearing and data wiping.**  
+  *`PlatformStorageManager` provides surgical domain-scoped session invalidation without purging global state.*  
+  *Cookies for targeted platform domains are actively expired (`Max-Age=0`), WebStorage origins are purged via `WebStorage.deleteOrigin()`, and DOM storage (`localStorage`, `sessionStorage`, `indexedDB`, `caches`) is wiped via evaluated scripts. Other platforms and credentials remain completely isolated and unaffected.*
 
 ---
 

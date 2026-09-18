@@ -184,12 +184,25 @@ class MainActivity : AppCompatActivity() {
         binding.btnMoreMenu.setOnClickListener { view ->
             val popup = PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
+            val activePlatform = tabManager.activeTab?.platform
             popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
                 platformManager.isStripMetadataEnabled()
             popup.menu.findItem(R.id.menu_polish_urls)?.isChecked =
                 platformManager.isPolishUrlsEnabled()
             popup.menu.findItem(R.id.menu_download_video)?.isVisible =
                 (tabManager.activeTab != null)
+            popup.menu.findItem(R.id.menu_clear_cache)?.apply {
+                isVisible = (activePlatform != null)
+                if (activePlatform != null) {
+                    title = "Clear Cache for ${activePlatform.name}"
+                }
+            }
+            popup.menu.findItem(R.id.menu_wipe_data)?.apply {
+                isVisible = (activePlatform != null)
+                if (activePlatform != null) {
+                    title = "Wipe Data for ${activePlatform.name}"
+                }
+            }
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_open_url -> {
@@ -218,6 +231,14 @@ class MainActivity : AppCompatActivity() {
                     }
                     R.id.menu_download_video -> {
                         tabManager.activeTab?.webView?.let { extractAndDownloadVideo(it) }
+                        true
+                    }
+                    R.id.menu_clear_cache -> {
+                        tabManager.activeTab?.platform?.let { showClearCacheDialog(it) }
+                        true
+                    }
+                    R.id.menu_wipe_data -> {
+                        tabManager.activeTab?.platform?.let { showWipeDataDialog(it) }
                         true
                     }
                     R.id.menu_reset_defaults -> {
@@ -716,6 +737,14 @@ class MainActivity : AppCompatActivity() {
                     openPlatformInNewTab(platform)
                     true
                 }
+                R.id.action_clear_cache -> {
+                    showClearCacheDialog(platform)
+                    true
+                }
+                R.id.action_wipe_data -> {
+                    showWipeDataDialog(platform)
+                    true
+                }
                 R.id.action_remove_platform -> {
                     showDeletePlatformDialog(platform)
                     true
@@ -724,6 +753,33 @@ class MainActivity : AppCompatActivity() {
             }
         }
         popup.show()
+    }
+
+    private fun showClearCacheDialog(platform: Platform) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.dialog_clear_cache_title, platform.name))
+            .setMessage(getString(R.string.dialog_clear_cache_msg, platform.name))
+            .setPositiveButton(R.string.btn_clear_cache) { _, _ ->
+                PlatformStorageManager.clearCacheForPlatform(platform, tabManager.tabs)
+                Toast.makeText(this, getString(R.string.toast_cache_cleared, platform.name), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun showWipeDataDialog(platform: Platform) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.dialog_wipe_data_title, platform.name))
+            .setMessage(getString(R.string.dialog_wipe_data_msg, platform.name))
+            .setPositiveButton(R.string.btn_wipe_data) { _, _ ->
+                PlatformStorageManager.wipeDataForPlatform(platform, tabManager.tabs) {
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.toast_data_wiped, platform.name), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
     }
 
     private fun showDeletePlatformDialog(platform: Platform) {
