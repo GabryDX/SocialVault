@@ -41,4 +41,10 @@
     <string name="share_link_chooser_title">Share Clean Link via</string>
     <string name="toast_clean_link_copied">Clean link copied to clipboard</string>
     <string name="toast_no_link_to_share">No active webpage link to share</string>
+    <string name="yt_download_title">Download YouTube Video</string>
+    <string name="yt_download_message">YouTube streams video in separate, encrypted DASH video and audio channels. Choose how to download this video:</string>
+    <string name="yt_download_cobalt">Download via Cobalt (Clean Web Downloader)</string>
+    <string name="yt_download_external_app">Open with Downloader App (Seal, NewPipe…)</string>
+    <string name="yt_download_copy_link">Copy Clean Video Link</string>
+    <string name="yt_download_chooser_title">Download video with…</string>
 </resources>

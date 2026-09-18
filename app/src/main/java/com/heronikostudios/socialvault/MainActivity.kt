@@ -1136,8 +1136,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun extractAndDownloadVideo(webView: WebView) {
+        val currentTab = tabManager.activeTab
+        val currentUrl = webView.url ?: currentTab?.currentUrl ?: ""
+        val isYouTube = currentTab?.platform?.id == "youtube" ||
+                currentUrl.contains("youtube.com", ignoreCase = true) ||
+                currentUrl.contains("youtu.be", ignoreCase = true)
+
         val js = """
             (function() {
+                // 1. Try standard video elements (Instagram, TikTok, Twitter/X, Reddit, etc.)
                 var videos = document.getElementsByTagName('video');
                 for (var i = 0; i < videos.length; i++) {
                     var v = videos[i];
@@ -1148,6 +1155,19 @@ class MainActivity : AppCompatActivity() {
                         if (sources[j].src && sources[j].src.startsWith('http')) return sources[j].src;
                     }
                 }
+
+                // 2. Try in-page YouTube player response if an unenciphered stream is available
+                try {
+                    var p = window.ytInitialPlayerResponse || 
+                            (window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && JSON.parse(window.ytplayer.config.args.player_response));
+                    if (p && p.streamingData && p.streamingData.formats) {
+                        for (var k = 0; k < p.streamingData.formats.length; k++) {
+                            var f = p.streamingData.formats[k];
+                            if (f.url && f.url.startsWith('http')) return f.url;
+                        }
+                    }
+                } catch(e) {}
+
                 return null;
             })();
         """.trimIndent()
@@ -1160,10 +1180,65 @@ class MainActivity : AppCompatActivity() {
                     url = cleanResult,
                     userAgent = webView.settings.userAgentString
                 )
+            } else if (isYouTube && currentUrl.isNotBlank()) {
+                showYouTubeDownloadOptions(currentUrl)
             } else {
                 Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun showYouTubeDownloadOptions(videoUrl: String) {
+        val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(videoUrl).polishedUrl
+        } else {
+            videoUrl
+        }
+
+        val options = arrayOf(
+            getString(R.string.yt_download_cobalt),
+            getString(R.string.yt_download_external_app),
+            getString(R.string.yt_download_copy_link)
+        )
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.yt_download_title)
+            .setMessage(R.string.yt_download_message)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // Open with Cobalt (open-source, clean, ad-free web downloader)
+                        val cobaltUrl = "https://cobalt.tools/?u=" + Uri.encode(cleanUrl)
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cobaltUrl)).apply {
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                            }
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Could not launch web browser", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    1 -> {
+                        // Open with dedicated video downloader app (Seal, NewPipe, YTDLnis, etc.)
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl))
+                        val chooser = Intent.createChooser(intent, getString(R.string.yt_download_chooser_title))
+                        try {
+                            startActivity(chooser)
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "No compatible downloader app found", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    2 -> {
+                        // Copy clean link to clipboard
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val clip = ClipData.newPlainText("Clean YouTube Link", cleanUrl)
+                        clipboard?.setPrimaryClip(clip)
+                        Toast.makeText(this, R.string.toast_clean_link_copied, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
     }
 
     private fun shareCurrentLink(copyOnly: Boolean = false) {
