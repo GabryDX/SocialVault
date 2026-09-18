@@ -123,7 +123,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { view, insets ->
             if (isFullScreenMode && tabManager.activeTab != null) {
-                view.setPadding(0, 0, 0, 0)
+                val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+                view.setPadding(navBars.left, 0, navBars.right, navBars.bottom)
             } else {
                 val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
                 view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -881,7 +882,13 @@ class MainActivity : AppCompatActivity() {
             binding.topBar.visibility = View.GONE
             binding.bottomNavBar.visibility = View.GONE
             binding.cardExitFullScreen.visibility = View.VISIBLE
-            setSystemBarsVisible(false)
+            // Keep the system navigation bar (bottom buttons) visible while hiding status bar
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                hide(WindowInsetsCompat.Type.statusBars())
+                show(WindowInsetsCompat.Type.navigationBars())
+                systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
             ViewCompat.requestApplyInsets(binding.rootLayout)
             if (showToast) {
                 Toast.makeText(this, R.string.toast_full_screen_enabled, Toast.LENGTH_SHORT).show()
