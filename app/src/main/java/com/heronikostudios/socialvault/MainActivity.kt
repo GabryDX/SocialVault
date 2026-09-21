@@ -10,6 +10,9 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.RelativeSizeSpan
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -1294,8 +1297,26 @@ class MainActivity : AppCompatActivity() {
         val displayOptions = items.map { "${it.resolution} • ${it.formatName}" }.toMutableList()
         displayOptions.add(getString(R.string.yt_option_more_external))
 
+        val titleText = if (videoTitle.isNotBlank() && videoTitle != "YouTube Video") {
+            val truncatedTitle = if (videoTitle.length > 75) videoTitle.take(72).trimEnd() + "…" else videoTitle
+            SpannableStringBuilder().apply {
+                append(getString(R.string.yt_select_quality_title))
+                append("\n")
+                val start = length
+                append(truncatedTitle)
+                setSpan(
+                    RelativeSizeSpan(0.75f),
+                    start,
+                    length,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        } else {
+            getString(R.string.yt_select_quality_title)
+        }
+
         MaterialAlertDialogBuilder(this)
-            .setTitle(videoTitle)
+            .setTitle(titleText)
             .setItems(displayOptions.toTypedArray()) { _, which ->
                 if (which < items.size) {
                     val selectedItem = items[which]
@@ -1408,9 +1429,26 @@ class MainActivity : AppCompatActivity() {
         val displayOptions = items.map { it.formatName }.toMutableList()
         displayOptions.add(getString(R.string.yt_option_more_external))
 
+        val titleText = if (videoTitle.isNotBlank() && videoTitle != "X Post") {
+            val truncatedTitle = if (videoTitle.length > 75) videoTitle.take(72).trimEnd() + "…" else videoTitle
+            SpannableStringBuilder().apply {
+                append(getString(R.string.x_select_quality_title))
+                append("\n")
+                val start = length
+                append(truncatedTitle)
+                setSpan(
+                    RelativeSizeSpan(0.75f),
+                    start,
+                    length,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+        } else {
+            getString(R.string.x_select_quality_title)
+        }
+
         MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.x_select_quality_title)
-            .setMessage(videoTitle)
+            .setTitle(titleText)
             .setItems(displayOptions.toTypedArray()) { _, which ->
                 if (which < items.size) {
                     val selectedItem = items[which]
