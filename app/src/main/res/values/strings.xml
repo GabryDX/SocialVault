@@ -52,4 +52,14 @@
     <string name="yt_option_more_external">More options / External app…</string>
     <string name="yt_no_video_open">Please open a YouTube video to download it</string>
     <string name="yt_extract_failed">Could not extract video streams directly. Choose an alternative:</string>
+    <string name="x_download_title">Download X / Twitter Video</string>
+    <string name="x_download_message">Choose how to download this video:</string>
+    <string name="x_download_cobalt">Download via Cobalt (Clean Web Downloader)</string>
+    <string name="x_download_external_app">Open with Downloader App (Seal, YTDLnis…)</string>
+    <string name="x_download_copy_link">Copy Clean Post Link</string>
+    <string name="x_download_chooser_title">Download post video with…</string>
+    <string name="x_extracting_streams">Resolving X video streams…</string>
+    <string name="x_select_quality_title">Select Download Quality</string>
+    <string name="x_no_video_open">Please open or play an X post with video to download it</string>
+    <string name="x_extract_failed">Could not extract direct video streams. Choose an alternative:</string>
 </resources>

@@ -1150,6 +1150,8 @@ class MainActivity : AppCompatActivity() {
         val isYouTube = currentTab?.platform?.id == "youtube" ||
                 currentUrl.contains("youtube.com", ignoreCase = true) ||
                 currentUrl.contains("youtu.be", ignoreCase = true)
+        val isTwitter = currentTab?.platform?.id == "x" ||
+                TwitterStreamHelper.isTwitterUrl(currentUrl)
 
         if (isYouTube) {
             webView.evaluateJavascript("window.location.href") { locResult ->
@@ -1160,9 +1162,73 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        if (isTwitter) {
+            val twitterJs = """
+                (function() {
+                    var videos = document.getElementsByTagName('video');
+                    function findStatusLink(el) {
+                        if (!el) return null;
+                        var article = el.closest('article');
+                        if (article) {
+                            var timeEl = article.querySelector('time');
+                            var timeA = timeEl ? timeEl.closest('a') : null;
+                            if (timeA && timeA.href && timeA.href.indexOf('/status/') !== -1) {
+                                return timeA.href;
+                            }
+                            var anyStatusA = article.querySelector('a[href*="/status/"]');
+                            if (anyStatusA && anyStatusA.href) {
+                                return anyStatusA.href;
+                            }
+                        }
+                        return null;
+                    }
+
+                    // 1. Actively playing video
+                    for (var i = 0; i < videos.length; i++) {
+                        var v = videos[i];
+                        if (!v.paused && v.currentTime > 0 && !v.ended) {
+                            var link = findStatusLink(v);
+                            if (link) return link;
+                        }
+                    }
+
+                    // 2. Visible video in viewport
+                    var winHeight = window.innerHeight || document.documentElement.clientHeight;
+                    for (var i = 0; i < videos.length; i++) {
+                        var v = videos[i];
+                        var rect = v.getBoundingClientRect();
+                        if (rect.bottom > 0 && rect.top < winHeight) {
+                            var link = findStatusLink(v);
+                            if (link) return link;
+                        }
+                    }
+
+                    // 3. Any video inside an article
+                    for (var i = 0; i < videos.length; i++) {
+                        var link = findStatusLink(videos[i]);
+                        if (link) return link;
+                    }
+
+                    // 4. Current page URL if it contains a status permalink
+                    if (window.location.href.indexOf('/status/') !== -1) {
+                        return window.location.href;
+                    }
+
+                    return window.location.href;
+                })();
+            """.trimIndent()
+
+            webView.evaluateJavascript(twitterJs) { result ->
+                val jsUrl = result?.trim('"', ' ', '\n')?.takeIf { it.startsWith("http") }
+                val effectiveUrl = jsUrl ?: webView.url ?: currentTab?.currentUrl ?: ""
+                handleTwitterDownload(effectiveUrl)
+            }
+            return
+        }
+
         val js = """
             (function() {
-                // Try standard video elements (Instagram, TikTok, Twitter/X, Reddit, etc.)
+                // Try standard video elements (Instagram, TikTok, Reddit, etc.)
                 var videos = document.getElementsByTagName('video');
                 for (var i = 0; i < videos.length; i++) {
                     var v = videos[i];
@@ -1294,6 +1360,121 @@ class MainActivity : AppCompatActivity() {
                         // Copy clean link to clipboard
                         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         val clip = ClipData.newPlainText("Clean YouTube Link", cleanUrl)
+                        clipboard?.setPrimaryClip(clip)
+                        Toast.makeText(this, R.string.toast_clean_link_copied, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun handleTwitterDownload(postUrl: String) {
+        val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(postUrl).polishedUrl
+        } else {
+            postUrl
+        }
+
+        val tweetId = TwitterStreamHelper.extractTweetId(cleanUrl)
+        if (tweetId == null) {
+            Toast.makeText(this, R.string.x_no_video_open, Toast.LENGTH_SHORT).show()
+            showTwitterDownloadOptions(cleanUrl, isFallback = true)
+            return
+        }
+
+        Toast.makeText(this, R.string.x_extracting_streams, Toast.LENGTH_SHORT).show()
+
+        Thread {
+            val result = TwitterStreamHelper.extractStreams(cleanUrl)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (result.isSuccess) {
+                    val items = result.getOrNull()
+                    if (!items.isNullOrEmpty()) {
+                        showTwitterStreamSelectionDialog(items, cleanUrl)
+                    } else {
+                        showTwitterDownloadOptions(cleanUrl, isFallback = true)
+                    }
+                } else {
+                    showTwitterDownloadOptions(cleanUrl, isFallback = true)
+                }
+            }
+        }.start()
+    }
+
+    private fun showTwitterStreamSelectionDialog(items: List<TwitterStreamItem>, postUrl: String) {
+        val videoTitle = items.first().title
+        val displayOptions = items.map { it.formatName }.toMutableList()
+        displayOptions.add(getString(R.string.yt_option_more_external))
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.x_select_quality_title)
+            .setMessage(videoTitle)
+            .setItems(displayOptions.toTypedArray()) { _, which ->
+                if (which < items.size) {
+                    val selectedItem = items[which]
+                    DownloadHelper.downloadFile(
+                        context = this@MainActivity,
+                        url = selectedItem.url,
+                        userAgent = tabManager.activeTab?.webView?.settings?.userAgentString,
+                        mimeType = selectedItem.mimeType,
+                        customFileName = selectedItem.safeFileName
+                    )
+                } else {
+                    showTwitterDownloadOptions(postUrl, isFallback = false)
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun showTwitterDownloadOptions(postUrl: String, isFallback: Boolean = false) {
+        val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(postUrl).polishedUrl
+        } else {
+            postUrl
+        }
+
+        val messageRes = if (isFallback) R.string.x_extract_failed else R.string.x_download_message
+
+        val options = arrayOf(
+            getString(R.string.x_download_cobalt),
+            getString(R.string.x_download_external_app),
+            getString(R.string.x_download_copy_link)
+        )
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.x_download_title)
+            .setMessage(messageRes)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // Open with Cobalt (open-source, clean, ad-free web downloader)
+                        val cobaltUrl = "https://cobalt.tools/?u=" + Uri.encode(cleanUrl)
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cobaltUrl)).apply {
+                                addCategory(Intent.CATEGORY_BROWSABLE)
+                            }
+                            startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(this, "Could not launch web browser", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    1 -> {
+                        // Open with dedicated video downloader app (Seal, YTDLnis, etc.)
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl))
+                        val chooser = Intent.createChooser(intent, getString(R.string.x_download_chooser_title))
+                        try {
+                            startActivity(chooser)
+                        } catch (_: Exception) {
+                            Toast.makeText(this, "No compatible downloader app found", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    2 -> {
+                        // Copy clean link to clipboard
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val clip = ClipData.newPlainText("Clean X Link", cleanUrl)
                         clipboard?.setPrimaryClip(clip)
                         Toast.makeText(this, R.string.toast_clean_link_copied, Toast.LENGTH_SHORT).show()
                     }
