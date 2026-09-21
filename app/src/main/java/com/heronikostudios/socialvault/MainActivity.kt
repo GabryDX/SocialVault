@@ -61,6 +61,7 @@ import com.heronikostudios.socialvault.databinding.ActivityMainBinding
 import com.heronikostudios.socialvault.databinding.DialogEditFavouriteBinding
 import com.heronikostudios.socialvault.databinding.LayoutCobaltSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutDownloadImagesSheetBinding
+import com.heronikostudios.socialvault.databinding.LayoutStoryDownloadSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutFavouritesSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
 import java.util.UUID
@@ -1319,50 +1320,97 @@ class MainActivity : AppCompatActivity() {
 
         webView.evaluateJavascript(ImageExtractorHelper.DETECT_ACTIVE_MEDIA_SCRIPT) { rawJson ->
             val activeMedia = ImageExtractorHelper.parseActiveMedia(rawJson)
-            if (activeMedia != null) {
-                val cookieManager = CookieManager.getInstance()
-                val userAgent = webView.settings.userAgentString
-                val isInstagram = platform?.id == "instagram" || (webView.url ?: "").contains("instagram.com")
-
-                if (activeMedia.type == "video") {
-                    val filename = if (isInstagram) {
-                        ImageExtractorHelper.generateStoryFileName("instagram", isVideo = true)
-                    } else {
-                        val prefix = platform?.name?.replace(" ", "") ?: "Media"
-                        "${prefix}_video_${System.currentTimeMillis()}.mp4"
-                    }
-                    Toast.makeText(this, R.string.toast_downloading_story_video, Toast.LENGTH_SHORT).show()
-                    DownloadHelper.downloadFile(
-                        context = this,
-                        url = activeMedia.url,
-                        userAgent = userAgent,
-                        cookieManager = cookieManager,
-                        customFileName = filename
-                    )
-                    return@evaluateJavascript
-                } else if (activeMedia.type == "image") {
-                    val format = DownloadHelper.inferMediaFormat(activeMedia.url, null, true)
-                    val ext = format?.first ?: "jpg"
-                    val filename = if (isInstagram) {
-                        ImageExtractorHelper.generateStoryFileName("instagram", isVideo = false, ext = ext)
-                    } else {
-                        val prefix = platform?.name?.replace(" ", "") ?: "Media"
-                        "${prefix}_photo_${System.currentTimeMillis()}.$ext"
-                    }
-                    Toast.makeText(this, R.string.toast_downloading_story_photo, Toast.LENGTH_SHORT).show()
-                    DownloadHelper.downloadFile(
-                        context = this,
-                        url = activeMedia.url,
-                        userAgent = userAgent,
-                        cookieManager = cookieManager,
-                        customFileName = filename
-                    )
-                    return@evaluateJavascript
-                }
+            if (activeMedia != null && (activeMedia.hasVideo || activeMedia.hasImage)) {
+                showStoryDownloadSheet(activeMedia, platform, webView)
+            } else {
+                extractAndDownloadImages(webView)
             }
+        }
+    }
 
+    private fun showStoryDownloadSheet(
+        activeMedia: ActiveMedia,
+        platform: Platform?,
+        webView: WebView
+    ) {
+        val sheetBinding = LayoutStoryDownloadSheetBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        dialog.setContentView(sheetBinding.root)
+
+        val isInstagram = platform?.id == "instagram" || (webView.url ?: "").contains("instagram.com")
+        val cookieManager = CookieManager.getInstance()
+        val userAgent = webView.settings.userAgentString
+
+        // Configure Video Option
+        if (activeMedia.hasVideo && !activeMedia.videoUrl.isNullOrBlank()) {
+            sheetBinding.cardDownloadVideo.isEnabled = true
+            sheetBinding.cardDownloadVideo.alpha = 1.0f
+            sheetBinding.tvVideoSubtitle.text = getString(R.string.desc_download_story_video)
+            sheetBinding.cardDownloadVideo.setOnClickListener {
+                dialog.dismiss()
+                val filename = if (isInstagram) {
+                    ImageExtractorHelper.generateStoryFileName("instagram", isVideo = true)
+                } else {
+                    val prefix = platform?.name?.replace(" ", "") ?: "Media"
+                    "${prefix}_video_${System.currentTimeMillis()}.mp4"
+                }
+                Toast.makeText(this, R.string.toast_downloading_story_video, Toast.LENGTH_SHORT).show()
+                DownloadHelper.downloadFile(
+                    context = this,
+                    url = activeMedia.videoUrl,
+                    userAgent = userAgent,
+                    cookieManager = cookieManager,
+                    customFileName = filename
+                )
+            }
+        } else {
+            sheetBinding.cardDownloadVideo.isEnabled = false
+            sheetBinding.cardDownloadVideo.alpha = 0.45f
+            sheetBinding.tvVideoSubtitle.text = getString(R.string.desc_no_story_video)
+            sheetBinding.ivVideoArrow.visibility = View.INVISIBLE
+        }
+
+        // Configure Image Option
+        if (activeMedia.hasImage && !activeMedia.imageUrl.isNullOrBlank()) {
+            sheetBinding.cardDownloadImage.isEnabled = true
+            sheetBinding.cardDownloadImage.alpha = 1.0f
+            sheetBinding.tvImageSubtitle.text = getString(R.string.desc_download_story_photo)
+            sheetBinding.cardDownloadImage.setOnClickListener {
+                dialog.dismiss()
+                val format = DownloadHelper.inferMediaFormat(activeMedia.imageUrl, null, true)
+                val ext = format?.first ?: "jpg"
+                val filename = if (isInstagram) {
+                    ImageExtractorHelper.generateStoryFileName("instagram", isVideo = false, ext = ext)
+                } else {
+                    val prefix = platform?.name?.replace(" ", "") ?: "Media"
+                    "${prefix}_photo_${System.currentTimeMillis()}.$ext"
+                }
+                Toast.makeText(this, R.string.toast_downloading_story_photo, Toast.LENGTH_SHORT).show()
+                DownloadHelper.downloadFile(
+                    context = this,
+                    url = activeMedia.imageUrl,
+                    userAgent = userAgent,
+                    cookieManager = cookieManager,
+                    customFileName = filename
+                )
+            }
+        } else {
+            sheetBinding.cardDownloadImage.isEnabled = false
+            sheetBinding.cardDownloadImage.alpha = 0.45f
+            sheetBinding.tvImageSubtitle.text = getString(R.string.desc_no_story_photo)
+            sheetBinding.ivImageArrow.visibility = View.INVISIBLE
+        }
+
+        sheetBinding.btnStorySheetClose.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnScanAllImages.setOnClickListener {
+            dialog.dismiss()
             extractAndDownloadImages(webView)
         }
+
+        dialog.show()
     }
 
     private fun setSystemBarsVisible(visible: Boolean) {
@@ -1594,10 +1642,10 @@ class MainActivity : AppCompatActivity() {
 
         webView.evaluateJavascript(ImageExtractorHelper.DETECT_ACTIVE_MEDIA_SCRIPT) { rawJson ->
             val activeMedia = ImageExtractorHelper.parseActiveMedia(rawJson)
-            if (activeMedia != null && activeMedia.type == "video") {
+            if (activeMedia != null && activeMedia.hasVideo && !activeMedia.videoUrl.isNullOrBlank()) {
                 DownloadHelper.downloadFile(
                     context = this@MainActivity,
-                    url = activeMedia.url,
+                    url = activeMedia.videoUrl,
                     userAgent = webView.settings.userAgentString
                 )
             } else {

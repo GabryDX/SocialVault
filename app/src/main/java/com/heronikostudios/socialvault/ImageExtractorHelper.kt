@@ -25,8 +25,10 @@ data class ExtractedImage(
 }
 
 data class ActiveMedia(
-    val type: String, // "video" or "image"
-    val url: String
+    val videoUrl: String? = null,
+    val imageUrl: String? = null,
+    val hasVideo: Boolean = !videoUrl.isNullOrBlank(),
+    val hasImage: Boolean = !imageUrl.isNullOrBlank()
 )
 
 object ImageExtractorHelper {
@@ -333,7 +335,8 @@ object ImageExtractorHelper {
 
     /**
      * JavaScript to detect the active video or story media (image or video) currently displayed.
-     * Checks HTML5 videos, React Fiber on video/story elements, story viewer containers, and scripts.
+     * Checks HTML5 videos, React Fiber on video/story elements, story viewer containers, and scripts,
+     * while strictly filtering out profile pictures and avatars.
      */
     val DETECT_ACTIVE_MEDIA_SCRIPT = """
         (function() {
@@ -343,6 +346,28 @@ object ImageExtractorHelper {
                     var s = u.trim().replace(/\\\//g, '/').replace(/\\u0026/g, '&');
                     if (s.indexOf('http://') === 0 || s.indexOf('https://') === 0) return s;
                     return null;
+                }
+
+                function isAvatar(url, el) {
+                    if (!url) return true;
+                    var u = url.toLowerCase();
+                    if (u.indexOf('/s150x150/') !== -1 ||
+                        u.indexOf('/s320x320/') !== -1 ||
+                        u.indexOf('t51.2885-19') !== -1 ||
+                        u.indexOf('profile_pic') !== -1 ||
+                        u.indexOf('avatar') !== -1 ||
+                        u.indexOf('emoji') !== -1 ||
+                        u.indexOf('favicon') !== -1) {
+                        return true;
+                    }
+                    if (el) {
+                        var alt = (el.getAttribute('alt') || '').toLowerCase();
+                        if (alt.indexOf('profile') !== -1 || alt.indexOf('avatar') !== -1) return true;
+                        if (el.offsetWidth > 0 && el.offsetHeight > 0 && (el.offsetWidth < 120 || el.offsetHeight < 120)) {
+                            return true;
+                        }
+                    }
+                    return false;
                 }
 
                 function getBest(arr) {
@@ -356,6 +381,34 @@ object ImageExtractorHelper {
                     return best.src || best.url;
                 }
 
+                function getBestFromSrcset(srcset) {
+                    if (!srcset) return null;
+                    var parts = srcset.split(',');
+                    var bestUrl = null;
+                    var maxDim = 0;
+                    for (var i = 0; i < parts.length; i++) {
+                        var p = parts[i].trim();
+                        var tokens = p.split(/\s+/);
+                        if (tokens.length >= 1) {
+                            var u = tokens[0];
+                            var dim = 0;
+                            if (tokens.length >= 2) {
+                                var spec = tokens[1];
+                                if (spec.endsWith('w')) dim = parseInt(spec, 10) || 0;
+                                else if (spec.endsWith('x')) dim = (parseFloat(spec) || 1) * 1000;
+                            }
+                            if (dim >= maxDim || !bestUrl) {
+                                maxDim = dim;
+                                bestUrl = u;
+                            }
+                        }
+                    }
+                    return bestUrl;
+                }
+
+                var videoUrl = null;
+                var imageUrl = null;
+
                 // 1. Inspect HTML5 <video> elements
                 var videos = Array.from(document.querySelectorAll('video'));
                 for (var i = 0; i < videos.length; i++) {
@@ -365,13 +418,14 @@ object ImageExtractorHelper {
                     var isVisible = (v.offsetWidth > 150 && v.offsetHeight > 150) || (v.videoWidth > 0);
 
                     if (isPlaying || isFs || isVisible) {
-                        var src = clean(v.currentSrc || v.src);
-                        if (src) return JSON.stringify({ type: 'video', url: src });
-
+                        var vsrc = clean(v.currentSrc || v.src);
+                        if (vsrc && vsrc.indexOf('blob:') === -1) {
+                            videoUrl = vsrc;
+                        }
                         var source = v.querySelector('source[src]');
-                        if (source) {
+                        if (source && !videoUrl) {
                             var sSrc = clean(source.src);
-                            if (sSrc) return JSON.stringify({ type: 'video', url: sSrc });
+                            if (sSrc && sSrc.indexOf('blob:') === -1) videoUrl = sSrc;
                         }
 
                         // Check React Fiber on video element
@@ -386,18 +440,22 @@ object ImageExtractorHelper {
                                 if (p) {
                                     var item = p.item || p.post || p.media || p.story;
                                     if (item) {
-                                        if (item.video_versions && item.video_versions.length > 0) {
-                                            var vUrl = clean(item.video_versions[0].url);
-                                            if (vUrl) return JSON.stringify({ type: 'video', url: vUrl });
+                                        if (item.video_versions && item.video_versions.length > 0 && !videoUrl) {
+                                            var vU = clean(item.video_versions[0].url);
+                                            if (vU) videoUrl = vU;
                                         }
-                                        if (item.image_versions2 && item.image_versions2.candidates) {
-                                            var iUrl = clean(getBest(item.image_versions2.candidates));
-                                            if (iUrl) return JSON.stringify({ type: 'image', url: iUrl });
+                                        if (item.image_versions2 && item.image_versions2.candidates && !imageUrl) {
+                                            var iCand = clean(getBest(item.image_versions2.candidates));
+                                            if (iCand && !isAvatar(iCand, null)) imageUrl = iCand;
+                                        }
+                                        if (item.display_url && !imageUrl) {
+                                            var dCand = clean(item.display_url);
+                                            if (dCand && !isAvatar(dCand, null)) imageUrl = dCand;
                                         }
                                     }
-                                    if (p.videoUrl) {
+                                    if (p.videoUrl && !videoUrl) {
                                         var vu = clean(p.videoUrl);
-                                        if (vu) return JSON.stringify({ type: 'video', url: vu });
+                                        if (vu) videoUrl = vu;
                                     }
                                 }
                                 curr = curr.return;
@@ -407,8 +465,8 @@ object ImageExtractorHelper {
                     }
                 }
 
-                // 2. Inspect active Story / Dialog containers
-                var containers = document.querySelectorAll('section, [role="dialog"], [role="presentation"], article, div[style*="z-index"]');
+                // 2. Inspect active Story / Dialog containers (React Fiber)
+                var containers = document.querySelectorAll('section, [role="dialog"], [role="presentation"], article');
                 for (var c = 0; c < containers.length; c++) {
                     var el = containers[c];
                     var cfKey = Object.keys(el).find(function(k) {
@@ -422,17 +480,17 @@ object ImageExtractorHelper {
                         if (cProps) {
                             var mItem = cProps.item || cProps.post || cProps.media || cProps.story;
                             if (mItem) {
-                                if (mItem.video_versions && mItem.video_versions.length > 0) {
+                                if (mItem.video_versions && mItem.video_versions.length > 0 && !videoUrl) {
                                     var vidUrl = clean(mItem.video_versions[0].url);
-                                    if (vidUrl) return JSON.stringify({ type: 'video', url: vidUrl });
+                                    if (vidUrl) videoUrl = vidUrl;
                                 }
-                                if (mItem.image_versions2 && mItem.image_versions2.candidates) {
-                                    var imgUrl = clean(getBest(mItem.image_versions2.candidates));
-                                    if (imgUrl) return JSON.stringify({ type: 'image', url: imgUrl });
+                                if (mItem.image_versions2 && mItem.image_versions2.candidates && !imageUrl) {
+                                    var imgCand = clean(getBest(mItem.image_versions2.candidates));
+                                    if (imgCand && !isAvatar(imgCand, null)) imageUrl = imgCand;
                                 }
-                                if (mItem.display_url) {
+                                if (mItem.display_url && !imageUrl) {
                                     var dUrl = clean(mItem.display_url);
-                                    if (dUrl) return JSON.stringify({ type: 'image', url: dUrl });
+                                    if (dUrl && !isAvatar(dUrl, null)) imageUrl = dUrl;
                                 }
                             }
                         }
@@ -441,35 +499,61 @@ object ImageExtractorHelper {
                     }
                 }
 
-                // 3. Check for active story image in the DOM
-                var storyImgs = document.querySelectorAll('section img, [role="dialog"] img');
-                for (var s = 0; s < storyImgs.length; s++) {
-                    var simg = storyImgs[s];
-                    if (simg.naturalWidth > 200 || simg.offsetWidth > 200) {
-                        var isrc = clean(simg.currentSrc || simg.src);
-                        if (isrc) return JSON.stringify({ type: 'image', url: isrc });
+                // 3. Inspect DOM for the Main Story Image (Strictly filtering out avatars)
+                var maxArea = 0;
+                var allImgs = document.querySelectorAll('img');
+                for (var s = 0; s < allImgs.length; s++) {
+                    var simg = allImgs[s];
+                    var w = simg.offsetWidth || simg.naturalWidth || 0;
+                    var h = simg.offsetHeight || simg.naturalHeight || 0;
+                    var area = w * h;
+                    var src = simg.currentSrc || simg.src || '';
+
+                    if (isAvatar(src, simg)) continue;
+
+                    if (area > maxArea && (w >= 180 || h >= 250 || simg.naturalWidth >= 400)) {
+                        var bestSrc = getBestFromSrcset(simg.srcset) || src;
+                        var cleanedBest = clean(bestSrc);
+                        if (cleanedBest && !isAvatar(cleanedBest, simg)) {
+                            maxArea = area;
+                            imageUrl = cleanedBest;
+                        }
                     }
                 }
 
-                // 4. Check for any video URL in page scripts if on a story or reel permalink
+                // 4. Script tags fallback for story/reel permalinks
                 if (window.location.href.indexOf('/stories/') !== -1 || window.location.href.indexOf('/reel/') !== -1) {
                     var scripts = document.getElementsByTagName('script');
                     for (var sc = 0; sc < scripts.length; sc++) {
                         var content = scripts[sc].textContent || '';
-                        var m = content.match(/\"video_versions\"\s*:\s*\[\s*\{\s*[^}]*\"url\"\s*:\s*\"([^\"]+)\"/);
-                        if (m && m[1]) {
-                            var scriptVid = clean(m[1]);
-                            if (scriptVid) return JSON.stringify({ type: 'video', url: scriptVid });
+                        if (!videoUrl) {
+                            var mVid = content.match(/\"video_versions\"\s*:\s*\[\s*\{\s*[^}]*\"url\"\s*:\s*\"([^\"]+)\"/);
+                            if (mVid && mVid[1]) {
+                                var scriptVid = clean(mVid[1]);
+                                if (scriptVid) videoUrl = scriptVid;
+                            }
                         }
-                        var mPhoto = content.match(/\"display_url\"\s*:\s*\"([^\"]+)\"/);
-                        if (mPhoto && mPhoto[1]) {
-                            var scriptPhoto = clean(mPhoto[1]);
-                            if (scriptPhoto) return JSON.stringify({ type: 'image', url: scriptPhoto });
+                        if (!imageUrl) {
+                            var mCand = content.match(/\"candidates\"\s*:\s*(\[[^\]]+\])/);
+                            if (mCand && mCand[1]) {
+                                try {
+                                    var candList = JSON.parse(mCand[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&'));
+                                    var bestC = clean(getBest(candList));
+                                    if (bestC && !isAvatar(bestC, null)) imageUrl = bestC;
+                                } catch(e) {}
+                            }
                         }
                     }
                 }
 
-                return null;
+                if (!videoUrl && !imageUrl) return null;
+
+                return JSON.stringify({
+                    videoUrl: videoUrl,
+                    imageUrl: imageUrl,
+                    hasVideo: !!videoUrl,
+                    hasImage: !!imageUrl
+                });
             } catch(e) {
                 return null;
             }
@@ -512,7 +596,7 @@ object ImageExtractorHelper {
     }
 
     /**
-     * Parses the result of DETECT_ACTIVE_MEDIA_SCRIPT.
+     * Parses the result of DETECT_ACTIVE_MEDIA_SCRIPT into ActiveMedia.
      */
     fun parseActiveMedia(rawJson: String?): ActiveMedia? {
         if (rawJson.isNullOrBlank() || rawJson == "null" || rawJson == "{}") return null
@@ -529,11 +613,19 @@ object ImageExtractorHelper {
         }
         return try {
             val obj = org.json.JSONObject(json)
-            val type = obj.optString("type", "").trim().lowercase()
-            val rawUrl = obj.optString("url", "").trim()
-            val cleanUrl = cleanMediaUrl(rawUrl)
-            if (cleanUrl != null && (type == "video" || type == "image")) {
-                ActiveMedia(type = type, url = cleanUrl)
+            val rawVideo = obj.optString("videoUrl", "").takeIf { it.isNotBlank() }
+            val rawImage = obj.optString("imageUrl", "").takeIf { it.isNotBlank() }
+
+            val cleanVideo = cleanMediaUrl(rawVideo)
+            val cleanImage = cleanMediaUrl(rawImage)
+
+            if (cleanVideo != null || cleanImage != null) {
+                ActiveMedia(
+                    videoUrl = cleanVideo,
+                    imageUrl = cleanImage,
+                    hasVideo = cleanVideo != null,
+                    hasImage = cleanImage != null
+                )
             } else {
                 null
             }

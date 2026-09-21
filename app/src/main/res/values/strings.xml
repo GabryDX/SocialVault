@@ -111,4 +111,13 @@
     <string name="toast_downloading_story_video">Downloading Story Video…</string>
     <string name="toast_downloading_story_photo">Downloading Story Photo…</string>
     <string name="toast_detecting_media">Detecting media to download…</string>
+    <string name="story_sheet_title">Download Story</string>
+    <string name="story_sheet_subtitle">Choose format to download</string>
+    <string name="action_download_story_video">Download Story Video</string>
+    <string name="desc_download_story_video">Save full high-definition video (.mp4)</string>
+    <string name="desc_no_story_video">No video stream in this story</string>
+    <string name="action_download_story_photo">Download Story Photo</string>
+    <string name="desc_download_story_photo">Save high-resolution photo (.jpg)</string>
+    <string name="desc_no_story_photo">No photo found</string>
+    <string name="action_download_all_page_images">Scan page for all images</string>
 </resources>

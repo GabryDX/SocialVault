@@ -133,21 +133,28 @@ class ImageExtractorHelperTest {
 
     @Test
     fun testParseActiveMedia_validVideoAndImage() {
-        val videoJson = """{"type": "video", "url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?bytestart=0&byteend=1000&cat=1"}"""
-        val activeVideo = ImageExtractorHelper.parseActiveMedia(videoJson)
-        org.junit.Assert.assertNotNull(activeVideo)
-        assertEquals("video", activeVideo?.type)
-        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?cat=1", activeVideo?.url)
+        val bothJson = """{
+            "videoUrl": "https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?bytestart=0&byteend=1000&cat=1",
+            "imageUrl": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg"
+        }"""
+        val activeBoth = ImageExtractorHelper.parseActiveMedia(bothJson)
+        org.junit.Assert.assertNotNull(activeBoth)
+        assertTrue(activeBoth!!.hasVideo)
+        assertTrue(activeBoth.hasImage)
+        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?cat=1", activeBoth.videoUrl)
+        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg", activeBoth.imageUrl)
 
-        val imageJson = """{"type": "image", "url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg"}"""
-        val activeImage = ImageExtractorHelper.parseActiveMedia(imageJson)
-        org.junit.Assert.assertNotNull(activeImage)
-        assertEquals("image", activeImage?.type)
-        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg", activeImage?.url)
+        val imageOnlyJson = """{"imageUrl": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg"}"""
+        val activeImageOnly = ImageExtractorHelper.parseActiveMedia(imageOnlyJson)
+        org.junit.Assert.assertNotNull(activeImageOnly)
+        assertFalse(activeImageOnly!!.hasVideo)
+        assertTrue(activeImageOnly.hasImage)
+        org.junit.Assert.assertNull(activeImageOnly.videoUrl)
+        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg", activeImageOnly.imageUrl)
 
         org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia(null))
         org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia("{}"))
-        org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia("""{"type": "unknown", "url": "https://example.com"}"""))
+        org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia("""{"videoUrl": "", "imageUrl": ""}"""))
     }
 
     @Test
