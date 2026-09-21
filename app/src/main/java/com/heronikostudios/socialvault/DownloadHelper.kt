@@ -26,7 +26,8 @@ object DownloadHelper {
         contentDisposition: String? = null,
         mimeType: String? = null,
         cookieManager: CookieManager? = null,
-        customFileName: String? = null
+        customFileName: String? = null,
+        isImage: Boolean = false
     ) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.startsWith("data:image/")) {
@@ -52,25 +53,18 @@ object DownloadHelper {
             return
         }
 
-        val fileName = if (!customFileName.isNullOrBlank()) {
-            val sanitized = customFileName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                .trim()
-                .trimStart('.')
-                .take(120)
-                .trimEnd('.')
-            if (sanitized.isNotBlank()) sanitized else "download_${System.currentTimeMillis()}"
-        } else {
-            try {
-                URLUtil.guessFileName(trimmedUrl, contentDisposition, mimeType)
-            } catch (_: Exception) {
-                "download_${System.currentTimeMillis()}"
-            }
-        }
+        val (fileName, resolvedMime) = resolveFileName(
+            url = trimmedUrl,
+            contentDisposition = contentDisposition,
+            mimeType = mimeType,
+            customFileName = customFileName,
+            isImage = isImage
+        )
 
         try {
             val request = DownloadManager.Request(uri).apply {
-                if (!mimeType.isNullOrBlank()) {
-                    setMimeType(mimeType)
+                if (!resolvedMime.isNullOrBlank()) {
+                    setMimeType(resolvedMime)
                 }
 
                 // Preserve session cookies for authenticated social media media requests
@@ -119,12 +113,16 @@ object DownloadHelper {
             val ext = when {
                 header.contains("png", ignoreCase = true) -> "png"
                 header.contains("webp", ignoreCase = true) -> "webp"
+                header.contains("gif", ignoreCase = true) -> "gif"
+                header.contains("svg", ignoreCase = true) -> "svg"
                 else -> "jpg"
             }
             val fileName = "download_${System.currentTimeMillis()}.$ext"
             val resolvedMime = when (ext) {
                 "png" -> "image/png"
                 "webp" -> "image/webp"
+                "gif" -> "image/gif"
+                "svg" -> "image/svg+xml"
                 else -> "image/jpeg"
             }
 
@@ -178,7 +176,13 @@ object DownloadHelper {
             .setTitle(title)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> downloadFile(context, mediaUrl, userAgent = userAgent, cookieManager = cookieManager)
+                    0 -> downloadFile(
+                        context = context,
+                        url = mediaUrl,
+                        userAgent = userAgent,
+                        cookieManager = cookieManager,
+                        isImage = isImage
+                    )
                     1 -> onOpenInNewTab(mediaUrl)
                     2 -> {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -198,13 +202,212 @@ object DownloadHelper {
             .show()
     }
 
+    fun sanitizeFileName(name: String): String {
+        val sanitized = name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .trim()
+            .trimStart('.')
+            .take(120)
+            .trimEnd('.')
+        return if (sanitized.isNotBlank()) sanitized else "download_${System.currentTimeMillis()}"
+    }
+
+    fun getQueryParameter(url: String, key: String): String? {
+        val query = url.substringAfter('?', "").substringBefore('#')
+        if (query.isEmpty()) return null
+        for (param in query.split('&')) {
+            val parts = param.split('=', limit = 2)
+            if (parts.isNotEmpty() && parts[0].equals(key, ignoreCase = true)) {
+                return if (parts.size == 2) parts[1] else ""
+            }
+        }
+        return null
+    }
+
+    fun inferMediaFormat(
+        url: String?,
+        declaredMime: String? = null,
+        isImage: Boolean = false
+    ): Pair<String, String>? {
+        if (url.isNullOrBlank() && declaredMime.isNullOrBlank()) {
+            return if (isImage) Pair("jpg", "image/jpeg") else null
+        }
+
+        // 1. Check declared MIME type if specific and not generic octet-stream
+        if (!declaredMime.isNullOrBlank() &&
+            !declaredMime.equals("application/octet-stream", ignoreCase = true) &&
+            !declaredMime.equals("*/*", ignoreCase = true)
+        ) {
+            val mime = declaredMime.substringBefore(';').trim().lowercase()
+            val ext = when (mime) {
+                "image/jpeg", "image/jpg", "image/pjpeg" -> "jpg"
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                "image/gif" -> "gif"
+                "image/svg+xml" -> "svg"
+                "image/bmp", "image/x-ms-bmp" -> "bmp"
+                "image/x-icon", "image/vnd.microsoft.icon" -> "ico"
+                "video/mp4" -> "mp4"
+                "video/webm" -> "webm"
+                "video/quicktime" -> "mov"
+                "video/x-matroska" -> "mkv"
+                "video/3gpp" -> "3gp"
+                "audio/mpeg", "audio/mp3" -> "mp3"
+                "audio/mp4", "audio/m4a" -> "m4a"
+                "audio/ogg" -> "ogg"
+                "audio/wav" -> "wav"
+                else -> null
+            }
+            if (ext != null) {
+                return Pair(ext, mime)
+            }
+        }
+
+        if (url.isNullOrBlank()) {
+            return if (isImage) Pair("jpg", "image/jpeg") else null
+        }
+
+        // 2. Check query parameters (format, ext, fmt, auto)
+        val formatParam = getQueryParameter(url, "format")
+            ?: getQueryParameter(url, "ext")
+            ?: getQueryParameter(url, "fmt")
+        if (!formatParam.isNullOrBlank()) {
+            val cleanParam = formatParam.lowercase()
+            when (cleanParam) {
+                "jpg", "jpeg", "pjpg" -> return Pair("jpg", "image/jpeg")
+                "png" -> return Pair("png", "image/png")
+                "webp" -> return Pair("webp", "image/webp")
+                "gif" -> return Pair("gif", "image/gif")
+                "svg" -> return Pair("svg", "image/svg+xml")
+                "mp4" -> return Pair("mp4", "video/mp4")
+                "webm" -> return Pair("webm", "video/webm")
+            }
+        }
+
+        val autoParam = getQueryParameter(url, "auto")?.lowercase()
+        if (autoParam == "webp") {
+            return Pair("webp", "image/webp")
+        }
+
+        // 3. Check path extension (handling Twitter suffixes like :large, :orig)
+        val cleanPath = url.substringBefore('?').substringBefore('#')
+            .replace(Regex(":(large|orig|small|thumb|medium)$", RegexOption.IGNORE_CASE), "")
+        val extFromPath = cleanPath.substringAfterLast('.', "").lowercase()
+        if (extFromPath.isNotBlank() && extFromPath.length in 2..5 && !extFromPath.contains('/')) {
+            when (extFromPath) {
+                "jpg", "jpeg" -> return Pair("jpg", "image/jpeg")
+                "png" -> return Pair("png", "image/png")
+                "webp" -> return Pair("webp", "image/webp")
+                "gif" -> return Pair("gif", "image/gif")
+                "svg" -> return Pair("svg", "image/svg+xml")
+                "bmp" -> return Pair("bmp", "image/bmp")
+                "ico" -> return Pair("ico", "image/x-icon")
+                "mp4" -> return Pair("mp4", "video/mp4")
+                "webm" -> return Pair("webm", "video/webm")
+                "mov" -> return Pair("mov", "video/quicktime")
+                "mkv" -> return Pair("mkv", "video/x-matroska")
+                "3gp" -> return Pair("3gp", "video/3gpp")
+                "mp3" -> return Pair("mp3", "audio/mpeg")
+                "m4a" -> return Pair("m4a", "audio/mp4")
+            }
+        }
+
+        // 4. Domain specific patterns (Twitter / Reddit media URLs)
+        val lowerUrl = url.lowercase()
+        if (lowerUrl.contains("pbs.twimg.com/media/") || lowerUrl.contains("ton.twitter.com/")) {
+            return Pair("jpg", "image/jpeg")
+        }
+        if (lowerUrl.contains("preview.redd.it/") || lowerUrl.contains("i.redd.it/")) {
+            return Pair("jpg", "image/jpeg")
+        }
+
+        // 5. Caller hint
+        if (isImage) {
+            return Pair("jpg", "image/jpeg")
+        }
+
+        return null
+    }
+
+    fun resolveFileName(
+        url: String,
+        contentDisposition: String? = null,
+        mimeType: String? = null,
+        customFileName: String? = null,
+        isImage: Boolean = false
+    ): Pair<String, String?> {
+        val formatInfo = inferMediaFormat(url, mimeType, isImage)
+        val inferredExt = formatInfo?.first
+        val effectiveMime = mimeType ?: formatInfo?.second
+
+        if (!customFileName.isNullOrBlank()) {
+            var sanitized = sanitizeFileName(customFileName)
+            if (!sanitized.contains('.') && !inferredExt.isNullOrBlank()) {
+                sanitized = "$sanitized.$inferredExt"
+            }
+            return Pair(sanitized, effectiveMime)
+        }
+
+        var candidate = try {
+            URLUtil.guessFileName(url, contentDisposition, effectiveMime)
+        } catch (_: Exception) {
+            null
+        }
+
+        // URLUtil defaults to "downloadfile.bin" when it can't determine a name.
+        // Fall back to the last URL path segment if available.
+        if (candidate.isNullOrBlank() || candidate == "downloadfile.bin" || candidate == ".bin") {
+            val pathSegment = url.substringBefore('?').substringBefore('#')
+                .trimEnd('/')
+                .substringAfterLast('/')
+                .replace(Regex(":(large|orig|small|thumb|medium)$", RegexOption.IGNORE_CASE), "")
+                .substringBeforeLast('.')
+            if (pathSegment.isNotBlank()) {
+                candidate = pathSegment
+            }
+        }
+
+        var name = sanitizeFileName(candidate ?: "download_${System.currentTimeMillis()}")
+
+        // Strip colon suffixes like :large, :orig from Twitter
+        name = name.replace(Regex(":(large|orig|small|thumb|medium)$", RegexOption.IGNORE_CASE), "")
+
+        // Fix .bin extension or missing extension
+        if (name.endsWith(".bin", ignoreCase = true)) {
+            val base = name.substringBeforeLast(".bin")
+            val ext = inferredExt ?: if (isImage) "jpg" else null
+            name = if (ext != null) "$base.$ext" else name
+        } else if (!name.contains('.')) {
+            val ext = inferredExt ?: if (isImage) "jpg" else null
+            name = if (ext != null) "$name.$ext" else name
+        } else if (name.endsWith('.')) {
+            val ext = inferredExt ?: if (isImage) "jpg" else "bin"
+            name = "$name$ext"
+        }
+
+        val finalMime = effectiveMime ?: when (name.substringAfterLast('.', "").lowercase()) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            "svg" -> "image/svg+xml"
+            "mp4" -> "video/mp4"
+            "webm" -> "video/webm"
+            "mov" -> "video/quicktime"
+            "mkv" -> "video/x-matroska"
+            else -> null
+        }
+
+        return Pair(name, finalMime)
+    }
+
     fun isMediaUrl(url: String?): Boolean {
-        if (url == null) return false
-        val clean = url.substringBefore('?').substringBefore('#').lowercase()
-        return clean.endsWith(".jpg") || clean.endsWith(".jpeg") ||
-                clean.endsWith(".png") || clean.endsWith(".webp") ||
-                clean.endsWith(".gif") || clean.endsWith(".mp4") ||
-                clean.endsWith(".webm") || clean.endsWith(".mov") ||
-                clean.endsWith(".mkv")
+        if (url.isNullOrBlank()) return false
+        return inferMediaFormat(url, null, false) != null
+    }
+
+    fun isImageUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val format = inferMediaFormat(url, null, false) ?: return false
+        return format.second.startsWith("image/")
     }
 }

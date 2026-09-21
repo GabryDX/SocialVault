@@ -486,7 +486,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
                     if (!extra.isNullOrBlank() && DownloadHelper.isMediaUrl(extra)) {
-                        val isImg = !extra.contains(".mp4", ignoreCase = true) && !extra.contains(".webm", ignoreCase = true)
+                        val isImg = DownloadHelper.isImageUrl(extra)
                         DownloadHelper.showMediaContextMenu(
                             context = this@MainActivity,
                             mediaUrl = extra,
