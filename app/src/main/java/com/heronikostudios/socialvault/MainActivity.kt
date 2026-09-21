@@ -50,11 +50,13 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.heronikostudios.socialvault.databinding.ActivityMainBinding
+import com.heronikostudios.socialvault.databinding.LayoutCobaltSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
 import java.util.UUID
 
@@ -1353,7 +1355,13 @@ class MainActivity : AppCompatActivity() {
                     userAgent = webView.settings.userAgentString
                 )
             } else {
-                Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
+                val pageUrl = webView.url ?: currentTab?.currentUrl
+                if (!pageUrl.isNullOrBlank() && (pageUrl.startsWith("http://") || pageUrl.startsWith("https://"))) {
+                    Toast.makeText(this@MainActivity, R.string.no_video_found_try_cobalt, Toast.LENGTH_SHORT).show()
+                    openInAppCobaltDownloader(pageUrl)
+                } else {
+                    Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -1466,16 +1474,7 @@ class MainActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
-                        // Open with Cobalt (open-source, clean, ad-free web downloader)
-                        val cobaltUrl = "https://cobalt.tools/?u=" + Uri.encode(cleanUrl)
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cobaltUrl)).apply {
-                                addCategory(Intent.CATEGORY_BROWSABLE)
-                            }
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(this, "Could not launch web browser", Toast.LENGTH_SHORT).show()
-                        }
+                        openInAppCobaltDownloader(cleanUrl)
                     }
                     1 -> {
                         // Open with dedicated video downloader app (Seal, NewPipe, YTDLnis, etc.)
@@ -1498,6 +1497,146 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun openInAppCobaltDownloader(mediaUrl: String) {
+        val cleanUrl = if (platformManager.isPolishUrlsEnabled()) {
+            UrlPolisher.polishUrl(mediaUrl).polishedUrl
+        } else {
+            mediaUrl
+        }
+
+        val sheetDialog = BottomSheetDialog(this)
+        val sheetBinding = LayoutCobaltSheetBinding.inflate(layoutInflater)
+        sheetDialog.setContentView(sheetBinding.root)
+
+        // Make the bottom sheet responsive (approx 82% of screen height)
+        val displayMetrics = resources.displayMetrics
+        val targetHeight = (displayMetrics.heightPixels * 0.82).toInt()
+        sheetBinding.cobaltWebViewContainer.layoutParams.height = targetHeight
+
+        sheetDialog.behavior.apply {
+            state = BottomSheetBehavior.STATE_EXPANDED
+            skipCollapsed = true
+            isHideable = true
+        }
+
+        val webView = sheetBinding.cobaltWebView
+        val profileName = "sv_profile_cobalt"
+        val cookieManager = if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            val profile = ProfileStore.getInstance().getOrCreateProfile(profileName)
+            WebViewCompat.setProfile(webView, profile.name)
+            profile.cookieManager
+        } else {
+            CookieManager.getInstance()
+        }
+
+        with(webView.settings) {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            allowFileAccess = false
+            allowContentAccess = false
+        }
+
+        cookieManager.apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true) // Required for Cobalt web UI and Turnstile challenge
+        }
+
+        webView.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
+            DownloadHelper.downloadFile(
+                context = this@MainActivity,
+                url = downloadUrl,
+                userAgent = userAgent,
+                contentDisposition = contentDisposition,
+                mimeType = mimeType,
+                cookieManager = cookieManager
+            )
+            Toast.makeText(this@MainActivity, R.string.toast_cobalt_download_started, Toast.LENGTH_SHORT).show()
+            sheetDialog.dismiss()
+        }
+
+        sheetBinding.btnCobaltClose.setOnClickListener {
+            sheetDialog.dismiss()
+        }
+
+        sheetBinding.btnCobaltReload.setOnClickListener {
+            webView.reload()
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (newProgress in 1..99) {
+                    sheetBinding.cobaltProgressBar.visibility = View.VISIBLE
+                    sheetBinding.cobaltProgressBar.progress = newProgress
+                } else {
+                    sheetBinding.cobaltProgressBar.visibility = View.GONE
+                }
+            }
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                val uri = request?.url ?: return false
+                val url = uri.toString()
+
+                // If navigating to a direct media stream or download URL, intercept and download
+                if (DownloadHelper.isMediaUrl(url)) {
+                    DownloadHelper.downloadFile(
+                        context = this@MainActivity,
+                        url = url,
+                        cookieManager = cookieManager
+                    )
+                    Toast.makeText(this@MainActivity, R.string.toast_cobalt_download_started, Toast.LENGTH_SHORT).show()
+                    sheetDialog.dismiss()
+                    return true
+                }
+
+                val host = uri.host?.lowercase().orEmpty()
+                val configuredHost = try {
+                    java.net.URI(platformManager.getCobaltInstanceUrl()).host?.lowercase().orEmpty()
+                } catch (_: Exception) {
+                    "cobalt.tools"
+                }
+
+                if (host.contains("cobalt.tools") || host == configuredHost || host.endsWith(".$configuredHost") || host.contains("cloudflare")) {
+                    return false
+                }
+
+                // If Cobalt redirects or tunnels to a download CDN, intercept and download
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    DownloadHelper.downloadFile(
+                        context = this@MainActivity,
+                        url = url,
+                        cookieManager = cookieManager
+                    )
+                    Toast.makeText(this@MainActivity, R.string.toast_cobalt_download_started, Toast.LENGTH_SHORT).show()
+                    sheetDialog.dismiss()
+                    return true
+                }
+
+                return false
+            }
+        }
+
+        val baseInstance = platformManager.getCobaltInstanceUrl().trimEnd('/')
+        val cobaltUrl = "$baseInstance/?u=" + Uri.encode(cleanUrl)
+        webView.loadUrl(cobaltUrl)
+
+        sheetDialog.setOnDismissListener {
+            webView.stopLoading()
+            webView.destroy()
+        }
+
+        sheetDialog.show()
     }
 
     private fun handleTwitterDownload(postUrl: String) {
@@ -1610,16 +1749,7 @@ class MainActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
-                        // Open with Cobalt (open-source, clean, ad-free web downloader)
-                        val cobaltUrl = "https://cobalt.tools/?u=" + Uri.encode(cleanUrl)
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(cobaltUrl)).apply {
-                                addCategory(Intent.CATEGORY_BROWSABLE)
-                            }
-                            startActivity(intent)
-                        } catch (_: Exception) {
-                            Toast.makeText(this, "Could not launch web browser", Toast.LENGTH_SHORT).show()
-                        }
+                        openInAppCobaltDownloader(cleanUrl)
                     }
                     1 -> {
                         // Open with dedicated video downloader app (Seal, YTDLnis, etc.)

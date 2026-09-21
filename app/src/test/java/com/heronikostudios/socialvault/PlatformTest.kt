@@ -153,4 +153,9 @@ class PlatformTest {
         org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "https://mybank.com/transfer"))
         org.junit.Assert.assertNull(PlatformManager.findMatchingPlatform(platforms, "javascript:alert(1)"))
     }
+
+    @Test
+    fun cobaltInstance_defaultConstantIsValidUrl() {
+        assertEquals("https://cobalt.tools", PlatformManager.DEFAULT_COBALT_INSTANCE)
+    }
 }

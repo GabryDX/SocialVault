@@ -26,6 +26,8 @@ class PlatformManager(private val context: Context) {
         private const val KEY_BLOCK_TRACKERS = "pref_block_trackers"
         private const val KEY_SECURE_SCREEN = "pref_secure_screen"
         private const val KEY_THIRD_PARTY_COOKIES = "pref_third_party_cookies"
+        private const val KEY_COBALT_INSTANCE = "pref_cobalt_instance"
+        const val DEFAULT_COBALT_INSTANCE = "https://cobalt.tools"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -247,6 +249,21 @@ class PlatformManager(private val context: Context) {
 
     fun setThirdPartyCookiesEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_THIRD_PARTY_COOKIES, enabled) }
+    }
+
+    fun getCobaltInstanceUrl(): String {
+        val url = prefs.getString(KEY_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE)
+        return if (!url.isNullOrBlank()) url.trim().trimEnd('/') else DEFAULT_COBALT_INSTANCE
+    }
+
+    fun setCobaltInstanceUrl(url: String) {
+        val clean = url.trim().trimEnd('/')
+        val formatted = when {
+            clean.isBlank() -> DEFAULT_COBALT_INSTANCE
+            clean.startsWith("http://", ignoreCase = true) || clean.startsWith("https://", ignoreCase = true) -> clean
+            else -> "https://$clean"
+        }
+        prefs.edit { putString(KEY_COBALT_INSTANCE, formatted) }
     }
 
     fun findMatchingPlatform(targetUrl: String): Platform? {

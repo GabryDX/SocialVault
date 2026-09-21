@@ -43,7 +43,7 @@
     <string name="toast_no_link_to_share">No active webpage link to share</string>
     <string name="yt_download_title">Download YouTube Video</string>
     <string name="yt_download_message">YouTube streams video in separate, encrypted DASH video and audio channels. Choose how to download this video:</string>
-    <string name="yt_download_cobalt">Download via Cobalt (Clean Web Downloader)</string>
+    <string name="yt_download_cobalt">Download via Cobalt (In-App Downloader)</string>
     <string name="yt_download_external_app">Open with Downloader App (Seal, NewPipe…)</string>
     <string name="yt_download_copy_link">Copy Clean Video Link</string>
     <string name="yt_download_chooser_title">Download video with…</string>
@@ -54,7 +54,11 @@
     <string name="yt_extract_failed">Could not extract video streams directly. Choose an alternative:</string>
     <string name="x_download_title">Download X / Twitter Video</string>
     <string name="x_download_message">Choose how to download this video:</string>
-    <string name="x_download_cobalt">Download via Cobalt (Clean Web Downloader)</string>
+    <string name="x_download_cobalt">Download via Cobalt (In-App Downloader)</string>
+    <string name="cobalt_sheet_title">Cobalt Downloader</string>
+    <string name="cobalt_sheet_subtitle">Fast, ad-free media download</string>
+    <string name="toast_cobalt_download_started">Download started via Cobalt</string>
+    <string name="no_video_found_try_cobalt">No direct video stream found. Opening Cobalt Downloader…</string>
     <string name="x_download_external_app">Open with Downloader App (Seal, YTDLnis…)</string>
     <string name="x_download_copy_link">Copy Clean Post Link</string>
     <string name="x_download_chooser_title">Download post video with…</string>
