@@ -1350,9 +1350,21 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.yt_download_copy_link)
         )
 
+        val titleText = SpannableStringBuilder().apply {
+            append(getString(R.string.yt_download_title))
+            append("\n")
+            val start = length
+            append(getString(messageRes))
+            setSpan(
+                RelativeSizeSpan(0.75f),
+                start,
+                length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
         MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.yt_download_title)
-            .setMessage(messageRes)
+            .setTitle(titleText)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
@@ -1482,9 +1494,21 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.x_download_copy_link)
         )
 
+        val titleText = SpannableStringBuilder().apply {
+            append(getString(R.string.x_download_title))
+            append("\n")
+            val start = length
+            append(getString(messageRes))
+            setSpan(
+                RelativeSizeSpan(0.75f),
+                start,
+                length,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
         MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.x_download_title)
-            .setMessage(messageRes)
+            .setTitle(titleText)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {

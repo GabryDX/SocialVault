@@ -115,40 +115,123 @@ object TwitterStreamHelper {
         val requestUrl = "$SYNDICATION_BASE_URL?id=$tweetId&token=$token&lang=en"
 
         return try {
+            val syndicationItems = try {
+                val request = Request.Builder()
+                    .url(requestUrl)
+                    .header("User-Agent", DEFAULT_USER_AGENT)
+                    .header("Accept", "application/json")
+                    .get()
+                    .build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    if (!responseBody.isNullOrBlank()) {
+                        val parsed = JSONObject(responseBody)
+                        parseMediaDetails(parsed, tweetId)
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    emptyList()
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            if (syndicationItems.isNotEmpty()) {
+                return Result.success(syndicationItems)
+            }
+
+            // Fallback: try VxTwitter endpoint for age-restricted or sensitive media
+            val vxItems = fetchFromVxTwitter(tweetId, client)
+            if (vxItems.isNotEmpty()) {
+                return Result.success(vxItems)
+            }
+
+            Result.failure(Exception("No downloadable video streams found in post"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun fetchFromVxTwitter(tweetId: String, client: OkHttpClient): List<TwitterStreamItem> {
+        return try {
+            val url = "https://api.vxtwitter.com/Twitter/status/$tweetId"
             val request = Request.Builder()
-                .url(requestUrl)
+                .url(url)
                 .header("User-Agent", DEFAULT_USER_AGENT)
                 .header("Accept", "application/json")
                 .get()
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return Result.failure(IOException("Syndication API returned HTTP ${response.code}"))
+            if (!response.isSuccessful) return emptyList()
+
+            val body = response.body?.string() ?: return emptyList()
+            val parsed = JSONObject(body)
+
+            val userScreenName = parsed.optString("user_screen_name").trim()
+            val userName = parsed.optString("user_name").trim()
+            val tweetText = parsed.optString("text").trim().replace(Regex("[\\r\\n]+"), " ")
+
+            val authorPrefix = when {
+                userScreenName.isNotBlank() -> "@$userScreenName"
+                userName.isNotBlank() -> userName
+                else -> "X Post"
             }
-
-            val responseBody = response.body?.string()
-            if (responseBody.isNullOrBlank()) {
-                return Result.failure(IOException("Empty response from syndication API"))
-            }
-
-            val parsed = JSONObject(responseBody)
-            val items = parseMediaDetails(parsed, tweetId)
-
-            if (items.isNotEmpty()) {
-                Result.success(items)
+            val baseTitle = if (tweetText.isNotBlank()) {
+                "$authorPrefix - $tweetText"
             } else {
-                Result.failure(Exception("No downloadable video streams found in post"))
+                "$authorPrefix Video $tweetId"
             }
-        } catch (e: Exception) {
-            Result.failure(e)
+
+            val items = mutableListOf<TwitterStreamItem>()
+            val mediaExtended = parsed.optJSONArray("media_extended")
+            if (mediaExtended != null) {
+                for (i in 0 until mediaExtended.length()) {
+                    val media = mediaExtended.optJSONObject(i) ?: continue
+                    val type = media.optString("type")
+                    val mediaUrl = media.optString("url")
+                    if (mediaUrl.isBlank() || (type != "video" && type != "gif" && !mediaUrl.endsWith(".mp4", ignoreCase = true))) continue
+
+                    val isGif = type == "gif"
+                    val sizeObj = media.optJSONObject("size")
+                    val width = sizeObj?.optInt("width", 0) ?: 0
+                    val height = sizeObj?.optInt("height", 0) ?: 0
+                    val res = if (width > 0 && height > 0) {
+                        val minDim = minOf(width, height)
+                        "${minDim}p (${width}x${height})"
+                    } else {
+                        resolveResolutionLabel(mediaUrl, 0, isGif)
+                    }
+
+                    items.add(
+                        TwitterStreamItem(
+                            title = baseTitle,
+                            resolution = res,
+                            bitrate = 0,
+                            url = mediaUrl,
+                            isGif = isGif
+                        )
+                    )
+                }
+            }
+
+            items
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
     private fun parseMediaDetails(root: JSONObject, tweetId: String): List<TwitterStreamItem> {
         val mediaArray = root.optJSONArray("mediaDetails")
+            ?: root.optJSONObject("extended_entities")?.optJSONArray("media")
+            ?: root.optJSONObject("entities")?.optJSONArray("media")
             ?: root.optJSONObject("quoted_tweet")?.optJSONArray("mediaDetails")
+            ?: root.optJSONObject("quoted_tweet")?.optJSONObject("extended_entities")?.optJSONArray("media")
             ?: root.optJSONObject("parent")?.optJSONArray("mediaDetails")
+            ?: root.optJSONObject("parent")?.optJSONObject("extended_entities")?.optJSONArray("media")
             ?: return emptyList()
 
         // Extract author & text for human-readable file naming
