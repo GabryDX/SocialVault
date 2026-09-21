@@ -113,6 +113,18 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val params = window.attributes
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else {
+                params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            window.attributes = params
+        }
+
         platformManager = PlatformManager(this)
         applySecureScreenMode(platformManager.isSecureScreenEnabled())
 
@@ -143,11 +155,23 @@ class MainActivity : AppCompatActivity() {
         handleIncomingIntent(intent)
     }
 
+    private var cachedCutoutTop = 0
+
     private fun setupInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { view, insets ->
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val directCutoutTop = maxOf(cutout.top, insets.displayCutout?.safeInsetTop ?: 0)
+            if (directCutoutTop > 0) {
+                cachedCutoutTop = maxOf(cachedCutoutTop, directCutoutTop)
+            }
+
             if (isFullScreenMode && tabManager.activeTab != null) {
                 val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-                view.setPadding(navBars.left, 0, navBars.right, navBars.bottom)
+                val topPadding = if (directCutoutTop > 0) directCutoutTop else cachedCutoutTop
+                val leftPadding = maxOf(navBars.left, cutout.left)
+                val rightPadding = maxOf(navBars.right, cutout.right)
+                val bottomPadding = maxOf(navBars.bottom, cutout.bottom)
+                view.setPadding(leftPadding, topPadding, rightPadding, bottomPadding)
             } else {
                 val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
                 view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
