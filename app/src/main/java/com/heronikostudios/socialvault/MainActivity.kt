@@ -1338,7 +1338,8 @@ class MainActivity : AppCompatActivity() {
         dialog.setContentView(sheetBinding.root)
 
         val isInstagram = platform?.id == "instagram" || (webView.url ?: "").contains("instagram.com")
-        val cookieManager = CookieManager.getInstance()
+        val cookieManager = platform?.let { PlatformStorageManager.getCookieManagerForPlatform(it) }
+            ?: CookieManager.getInstance()
         val userAgent = webView.settings.userAgentString
 
         // Configure Video Option
