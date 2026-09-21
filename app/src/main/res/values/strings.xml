@@ -107,4 +107,8 @@
     <string name="toast_no_images_found">No downloadable images found on this page</string>
     <string name="toast_downloading_images">Downloading %d images to Downloads…</string>
     <string name="toast_extracting_images">Scanning page for images…</string>
+    <string name="btn_download_story_media">Download Media</string>
+    <string name="toast_downloading_story_video">Downloading Story Video…</string>
+    <string name="toast_downloading_story_photo">Downloading Story Photo…</string>
+    <string name="toast_detecting_media">Detecting media to download…</string>
 </resources>

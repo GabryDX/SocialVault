@@ -97,4 +97,71 @@ class ImageExtractorHelperTest {
         assertEquals(1, result.size)
         assertEquals("https://instagram.com/p1.jpg", result[0].url)
     }
+
+    @Test
+    fun testParseExtractedImages_replacesLowerResolutionWithMaster() {
+        val json = """
+            [
+                {"url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.2885-15/photo1.jpg?stp=dst-jpg_e35_p640x640&nc=1", "width": 640, "height": 640, "alt": "slide 1"},
+                {"url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.2885-15/photo2.jpg?stp=dst-jpg_e35_p1080x1080&nc=2", "width": 1080, "height": 1080, "alt": "slide 2"},
+                {"url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.2885-15/photo1.jpg?stp=dst-jpg_e35_p1080x1080&nc=3", "width": 1080, "height": 1080, "alt": "slide 1 high-res"}
+            ]
+        """.trimIndent()
+
+        val result = ImageExtractorHelper.parseExtractedImages(json, "instagram")
+        assertEquals(2, result.size)
+        // Slide 1 was updated to high-res (1080x1080)
+        assertEquals(1080, result[0].width)
+        assertEquals(1080, result[0].height)
+        assertTrue(result[0].url.contains("p1080x1080"))
+        // Order was preserved: slide 1 first, slide 2 second
+        assertTrue(result[1].url.contains("photo2.jpg"))
+    }
+
+    @Test
+    fun testCleanMediaUrl_removesByteRangesAndUnescapes() {
+        val dirty = """https:\/\/scontent.cdninstagram.com\/v\/t50.1234-16\/reel.mp4?bytestart=0\u0026byteend=5000\u0026_nc_cat=100"""
+        val clean = ImageExtractorHelper.cleanMediaUrl(dirty)
+        assertEquals("https://scontent.cdninstagram.com/v/t50.1234-16/reel.mp4?_nc_cat=100", clean)
+
+        val cleanSimple = ImageExtractorHelper.cleanMediaUrl("https://example.com/video.mp4?bytestart=0&byteend=100")
+        assertEquals("https://example.com/video.mp4", cleanSimple)
+
+        val nullResult = ImageExtractorHelper.cleanMediaUrl("not-a-url")
+        org.junit.Assert.assertNull(nullResult)
+    }
+
+    @Test
+    fun testParseActiveMedia_validVideoAndImage() {
+        val videoJson = """{"type": "video", "url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?bytestart=0&byteend=1000&cat=1"}"""
+        val activeVideo = ImageExtractorHelper.parseActiveMedia(videoJson)
+        org.junit.Assert.assertNotNull(activeVideo)
+        assertEquals("video", activeVideo?.type)
+        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t50.1234/story.mp4?cat=1", activeVideo?.url)
+
+        val imageJson = """{"type": "image", "url": "https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg"}"""
+        val activeImage = ImageExtractorHelper.parseActiveMedia(imageJson)
+        org.junit.Assert.assertNotNull(activeImage)
+        assertEquals("image", activeImage?.type)
+        assertEquals("https://instagram.fcia1-1.fna.fbcdn.net/v/t51.1234/story.jpg", activeImage?.url)
+
+        org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia(null))
+        org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia("{}"))
+        org.junit.Assert.assertNull(ImageExtractorHelper.parseActiveMedia("""{"type": "unknown", "url": "https://example.com"}"""))
+    }
+
+    @Test
+    fun testGenerateStoryFileName() {
+        val igVideo = ImageExtractorHelper.generateStoryFileName("instagram", isVideo = true)
+        assertTrue(igVideo.startsWith("Instagram_story_video_"))
+        assertTrue(igVideo.endsWith(".mp4"))
+
+        val igPhoto = ImageExtractorHelper.generateStoryFileName("instagram", isVideo = false, ext = "webp")
+        assertTrue(igPhoto.startsWith("Instagram_story_photo_"))
+        assertTrue(igPhoto.endsWith(".webp"))
+
+        val tiktokVideo = ImageExtractorHelper.generateStoryFileName("tiktok", isVideo = true)
+        assertTrue(tiktokVideo.startsWith("TikTok_story_video_"))
+        assertTrue(tiktokVideo.endsWith(".mp4"))
+    }
 }

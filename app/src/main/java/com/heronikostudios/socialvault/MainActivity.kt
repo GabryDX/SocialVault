@@ -19,6 +19,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.SoundEffectConstants
 import kotlin.math.hypot
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -163,7 +164,7 @@ class MainActivity : AppCompatActivity() {
         setupBackNavigation()
         setupTabListener()
 
-        setupFullScreenExitButton()
+        setupFullScreenControls()
 
         showDashboard()
         handleIncomingIntent(intent)
@@ -750,6 +751,7 @@ class MainActivity : AppCompatActivity() {
 
                 applyFullscreenOrientation(platform, webView)
                 setSystemBarsVisible(false)
+                showFullScreenControls(true)
             }
 
             override fun onHideCustomView() {
@@ -951,6 +953,7 @@ class MainActivity : AppCompatActivity() {
             binding.topBar.visibility = View.VISIBLE
             binding.bottomNavBar.visibility = View.VISIBLE
             setSystemBarsVisible(true)
+            showFullScreenControls(false)
         }
     }
 
@@ -1182,10 +1185,7 @@ class MainActivity : AppCompatActivity() {
         if (enabled && tabManager.activeTab != null) {
             binding.topBar.visibility = View.GONE
             binding.bottomNavBar.visibility = View.GONE
-            binding.cardExitFullScreen.translationX = 0f
-            binding.cardExitFullScreen.translationY = 0f
-            binding.cardExitFullScreen.alpha = 0.45f
-            binding.cardExitFullScreen.visibility = View.VISIBLE
+            showFullScreenControls(true)
             // Keep the system navigation bar (bottom buttons) visible while hiding status bar
             WindowInsetsControllerCompat(window, window.decorView).apply {
                 hide(WindowInsetsCompat.Type.statusBars())
@@ -1198,20 +1198,37 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.toast_full_screen_enabled, Toast.LENGTH_SHORT).show()
             }
         } else {
-            binding.topBar.visibility = View.VISIBLE
-            binding.bottomNavBar.visibility = View.VISIBLE
-            binding.cardExitFullScreen.visibility = View.GONE
-            setSystemBarsVisible(true)
-            ViewCompat.requestApplyInsets(binding.rootLayout)
+            if (customView == null) {
+                binding.topBar.visibility = View.VISIBLE
+                binding.bottomNavBar.visibility = View.VISIBLE
+                showFullScreenControls(false)
+                setSystemBarsVisible(true)
+                ViewCompat.requestApplyInsets(binding.rootLayout)
+            }
             if (showToast) {
                 Toast.makeText(this, R.string.toast_full_screen_disabled, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    private fun showFullScreenControls(visible: Boolean) {
+        if (visible) {
+            binding.cardFullScreenControls.apply {
+                translationX = 0f
+                translationY = 0f
+                alpha = 0.45f
+                visibility = View.VISIBLE
+            }
+        } else {
+            if (!isFullScreenMode && customView == null) {
+                binding.cardFullScreenControls.visibility = View.GONE
+            }
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupFullScreenExitButton() {
-        val card = binding.cardExitFullScreen
+    private fun setupFullScreenControls() {
+        val card = binding.cardFullScreenControls
         var dX = 0f
         var dY = 0f
         var isDragging = false
@@ -1249,10 +1266,15 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isDragging) {
-                        view.performClick()
-                    }
                     view.animate().alpha(0.45f).setDuration(300).start()
+                    if (!isDragging) {
+                        view.playSoundEffect(SoundEffectConstants.CLICK)
+                        if (event.x < view.width / 2f) {
+                            handleFullScreenDownload()
+                        } else {
+                            handleFullScreenExit()
+                        }
+                    }
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
@@ -1262,10 +1284,84 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+    }
 
-        card.setOnClickListener {
+    private fun handleFullScreenExit() {
+        if (customView != null) {
+            hideCustomView()
+        } else if (isFullScreenMode) {
             platformManager.setFullScreenEnabled(false)
             applyFullScreenMode(false, showToast = true)
+        }
+    }
+
+    private fun handleFullScreenDownload() {
+        val activeTab = tabManager.activeTab ?: return
+        val webView = activeTab.webView
+        val platform = activeTab.platform
+        val currentUrl = webView.url ?: activeTab.currentUrl ?: ""
+
+        if (platform?.id == "youtube" || YouTubeStreamHelper.isYouTubeVideoUrl(currentUrl)) {
+            handleYouTubeDownload(currentUrl)
+            return
+        }
+
+        if (platform?.id == "x" || TwitterStreamHelper.isTwitterUrl(currentUrl)) {
+            extractAndDownloadVideo(webView)
+            return
+        }
+
+        detectAndDownloadActiveMedia(webView, platform)
+    }
+
+    private fun detectAndDownloadActiveMedia(webView: WebView, platform: Platform?) {
+        Toast.makeText(this, R.string.toast_detecting_media, Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(ImageExtractorHelper.DETECT_ACTIVE_MEDIA_SCRIPT) { rawJson ->
+            val activeMedia = ImageExtractorHelper.parseActiveMedia(rawJson)
+            if (activeMedia != null) {
+                val cookieManager = CookieManager.getInstance()
+                val userAgent = webView.settings.userAgentString
+                val isInstagram = platform?.id == "instagram" || (webView.url ?: "").contains("instagram.com")
+
+                if (activeMedia.type == "video") {
+                    val filename = if (isInstagram) {
+                        ImageExtractorHelper.generateStoryFileName("instagram", isVideo = true)
+                    } else {
+                        val prefix = platform?.name?.replace(" ", "") ?: "Media"
+                        "${prefix}_video_${System.currentTimeMillis()}.mp4"
+                    }
+                    Toast.makeText(this, R.string.toast_downloading_story_video, Toast.LENGTH_SHORT).show()
+                    DownloadHelper.downloadFile(
+                        context = this,
+                        url = activeMedia.url,
+                        userAgent = userAgent,
+                        cookieManager = cookieManager,
+                        customFileName = filename
+                    )
+                    return@evaluateJavascript
+                } else if (activeMedia.type == "image") {
+                    val format = DownloadHelper.inferMediaFormat(activeMedia.url, null, true)
+                    val ext = format?.first ?: "jpg"
+                    val filename = if (isInstagram) {
+                        ImageExtractorHelper.generateStoryFileName("instagram", isVideo = false, ext = ext)
+                    } else {
+                        val prefix = platform?.name?.replace(" ", "") ?: "Media"
+                        "${prefix}_photo_${System.currentTimeMillis()}.$ext"
+                    }
+                    Toast.makeText(this, R.string.toast_downloading_story_photo, Toast.LENGTH_SHORT).show()
+                    DownloadHelper.downloadFile(
+                        context = this,
+                        url = activeMedia.url,
+                        userAgent = userAgent,
+                        cookieManager = cookieManager,
+                        customFileName = filename
+                    )
+                    return@evaluateJavascript
+                }
+            }
+
+            extractAndDownloadImages(webView)
         }
     }
 
@@ -1496,38 +1592,48 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val js = """
-            (function() {
-                // Try standard video elements (Instagram, TikTok, Reddit, etc.)
-                var videos = document.getElementsByTagName('video');
-                for (var i = 0; i < videos.length; i++) {
-                    var v = videos[i];
-                    if (v.currentSrc && v.currentSrc.startsWith('http')) return v.currentSrc;
-                    if (v.src && v.src.startsWith('http')) return v.src;
-                    var sources = v.getElementsByTagName('source');
-                    for (var j = 0; j < sources.length; j++) {
-                        if (sources[j].src && sources[j].src.startsWith('http')) return sources[j].src;
-                    }
-                }
-                return null;
-            })();
-        """.trimIndent()
-
-        webView.evaluateJavascript(js) { result ->
-            val cleanResult = result?.trim('"', ' ', '\n')
-            if (!cleanResult.isNullOrBlank() && cleanResult != "null" && (cleanResult.startsWith("http://") || cleanResult.startsWith("https://"))) {
+        webView.evaluateJavascript(ImageExtractorHelper.DETECT_ACTIVE_MEDIA_SCRIPT) { rawJson ->
+            val activeMedia = ImageExtractorHelper.parseActiveMedia(rawJson)
+            if (activeMedia != null && activeMedia.type == "video") {
                 DownloadHelper.downloadFile(
                     context = this@MainActivity,
-                    url = cleanResult,
+                    url = activeMedia.url,
                     userAgent = webView.settings.userAgentString
                 )
             } else {
-                val pageUrl = webView.url ?: currentTab?.currentUrl
-                if (!pageUrl.isNullOrBlank() && (pageUrl.startsWith("http://") || pageUrl.startsWith("https://"))) {
-                    Toast.makeText(this@MainActivity, R.string.no_video_found_try_cobalt, Toast.LENGTH_SHORT).show()
-                    openInAppCobaltDownloader(pageUrl)
-                } else {
-                    Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
+                val js = """
+                    (function() {
+                        var videos = document.getElementsByTagName('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            var v = videos[i];
+                            if (v.currentSrc && v.currentSrc.startsWith('http')) return v.currentSrc;
+                            if (v.src && v.src.startsWith('http')) return v.src;
+                            var sources = v.getElementsByTagName('source');
+                            for (var j = 0; j < sources.length; j++) {
+                                if (sources[j].src && sources[j].src.startsWith('http')) return sources[j].src;
+                            }
+                        }
+                        return null;
+                    })();
+                """.trimIndent()
+
+                webView.evaluateJavascript(js) { result ->
+                    val cleanResult = result?.trim('"', ' ', '\n')
+                    if (!cleanResult.isNullOrBlank() && cleanResult != "null" && (cleanResult.startsWith("http://") || cleanResult.startsWith("https://"))) {
+                        DownloadHelper.downloadFile(
+                            context = this@MainActivity,
+                            url = cleanResult,
+                            userAgent = webView.settings.userAgentString
+                        )
+                    } else {
+                        val pageUrl = webView.url ?: currentTab?.currentUrl
+                        if (!pageUrl.isNullOrBlank() && (pageUrl.startsWith("http://") || pageUrl.startsWith("https://"))) {
+                            Toast.makeText(this@MainActivity, R.string.no_video_found_try_cobalt, Toast.LENGTH_SHORT).show()
+                            openInAppCobaltDownloader(pageUrl)
+                        } else {
+                            Toast.makeText(this@MainActivity, "No downloadable video stream found on this page", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }
@@ -2331,9 +2437,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isFullScreenMode) {
-            binding.cardExitFullScreen.translationX = 0f
-            binding.cardExitFullScreen.translationY = 0f
+        if (isFullScreenMode || customView != null) {
+            binding.cardFullScreenControls.translationX = 0f
+            binding.cardFullScreenControls.translationY = 0f
         }
     }
 

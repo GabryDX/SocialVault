@@ -305,11 +305,11 @@
                 android:background="@android:color/black"
                 android:visibility="gone" />
 
-            <!-- Floating Exit Full Screen Button -->
+            <!-- Floating Fullscreen Controls (Download & Exit) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardExitFullScreen"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:id="@+id/cardFullScreenControls"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
                 android:layout_marginEnd="16dp"
                 android:layout_marginBottom="16dp"
@@ -317,22 +317,47 @@
                 android:alpha="0.45"
                 android:clickable="true"
                 android:focusable="true"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="2dp"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="4dp"
                 app:cardBackgroundColor="#CC1E293B"
                 app:strokeColor="#33FFFFFF"
                 app:strokeWidth="1dp">
 
-                <ImageView
-                    android:id="@+id/btnExitFullScreen"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_fullscreen_exit"
-                    app:tint="#FFFFFF"
-                    android:clickable="false"
-                    android:focusable="false"
-                    android:contentDescription="@string/btn_exit_full_screen" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="4dp">
+
+                    <ImageView
+                        android:id="@+id/btnFullScreenDownload"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_download"
+                        app:tint="#FFFFFF"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:contentDescription="@string/btn_download_story_media" />
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="20dp"
+                        android:layout_marginHorizontal="2dp"
+                        android:background="#33FFFFFF" />
+
+                    <ImageView
+                        android:id="@+id/btnExitFullScreen"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_fullscreen_exit"
+                        app:tint="#FFFFFF"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:contentDescription="@string/btn_exit_full_screen" />
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </FrameLayout>
 
