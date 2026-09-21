@@ -107,7 +107,20 @@ SocialVault has undergone rigorous open-source compliance and defensive security
 
 ---
 
+## APK Verification
+
+To verify the authenticity and integrity of SocialVault APKs, you can use [AppVerifier](https://github.com/soupslurpr/AppVerifier).
+
+- **Package Name:** `com.heronikostudios.socialvault`
+- **SHA-256 Key:**  
+  ```
+  36:D6:9B:D7:8C:8A:44:90:C2:BC:3F:53:29:6A:BD:68:88:7E:2A:50:AD:9B:9D:A1:C3:6C:CC:D6:4E:96:AF:01
+  ```
+
+---
+
 ## 📄 License
 
 SocialVault source code is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.  
 Compiled distribution binaries incorporating `NewPipeExtractor` are distributed under the terms of the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
+
