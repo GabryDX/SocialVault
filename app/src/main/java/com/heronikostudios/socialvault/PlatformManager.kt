@@ -13,8 +13,27 @@ class PlatformManager(private val context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val currentPlatforms = mutableListOf<Platform>()
 
+    @Volatile private var cachedPlatformList: List<Platform>? = null
+    @Volatile private var cachedPlatformMap: Map<String, Platform>? = null
+
+    @Volatile private var cachedStripMetadata: Boolean = true
+    @Volatile private var cachedPolishUrls: Boolean = true
+    @Volatile private var cachedFullScreen: Boolean = false
+    @Volatile private var cachedBlockTrackers: Boolean = true
+    @Volatile private var cachedSecureScreen: Boolean = false
+    @Volatile private var cachedThirdPartyCookies: Boolean = false
+    @Volatile private var cachedCobaltUrl: String = DEFAULT_COBALT_INSTANCE
+
     init {
         loadPlatforms()
+        cachedStripMetadata = prefs.getBoolean(KEY_STRIP_METADATA, true)
+        cachedPolishUrls = prefs.getBoolean(KEY_POLISH_URLS, true)
+        cachedFullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false)
+        cachedBlockTrackers = prefs.getBoolean(KEY_BLOCK_TRACKERS, true)
+        cachedSecureScreen = prefs.getBoolean(KEY_SECURE_SCREEN, false)
+        cachedThirdPartyCookies = prefs.getBoolean(KEY_THIRD_PARTY_COOKIES, false)
+        cachedCobaltUrl = prefs.getString(KEY_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE)
+            ?.takeIf { it.isNotBlank() }?.trim()?.trimEnd('/') ?: DEFAULT_COBALT_INSTANCE
     }
 
     companion object {
@@ -143,9 +162,24 @@ class PlatformManager(private val context: Context) {
         }
     }
 
-    fun getAllPlatforms(): List<Platform> = currentPlatforms.toList()
+    fun getAllPlatforms(): List<Platform> {
+        return cachedPlatformList ?: synchronized(currentPlatforms) {
+            cachedPlatformList ?: currentPlatforms.toList().also {
+                cachedPlatformList = it
+                cachedPlatformMap = it.associateBy { p -> p.id }
+            }
+        }
+    }
 
-    fun getPlatformById(id: String): Platform? = currentPlatforms.find { it.id == id }
+    fun getPlatformById(id: String): Platform? {
+        val map = cachedPlatformMap
+        return if (map != null) {
+            map[id]
+        } else {
+            getAllPlatforms()
+            cachedPlatformMap?.get(id)
+        }
+    }
 
     fun addCustomPlatform(name: String, url: String): Platform? {
         val trimmedUrl = url.trim()
@@ -166,11 +200,12 @@ class PlatformManager(private val context: Context) {
         )
 
         currentPlatforms.add(platform)
+        invalidatePlatformCache()
         savePlatforms()
         return platform
     }
 
-    fun movePlatform(fromPosition: Int, toPosition: Int) {
+    fun movePlatform(fromPosition: Int, toPosition: Int, persistImmediately: Boolean = true) {
         if (fromPosition < 0 || fromPosition >= currentPlatforms.size ||
             toPosition < 0 || toPosition >= currentPlatforms.size
         ) {
@@ -185,12 +220,20 @@ class PlatformManager(private val context: Context) {
                 Collections.swap(currentPlatforms, i, i - 1)
             }
         }
+        invalidatePlatformCache()
+        if (persistImmediately) {
+            savePlatforms()
+        }
+    }
+
+    fun persistPlatformsOrder() {
         savePlatforms()
     }
 
     fun deletePlatform(id: String): Boolean {
         val removed = currentPlatforms.removeAll { it.id == id }
         if (removed) {
+            invalidatePlatformCache()
             savePlatforms()
         }
         return removed
@@ -199,62 +242,59 @@ class PlatformManager(private val context: Context) {
     fun resetToDefaults(): List<Platform> {
         currentPlatforms.clear()
         currentPlatforms.addAll(DEFAULT_PLATFORMS)
+        invalidatePlatformCache()
         savePlatforms()
         return getAllPlatforms()
     }
 
-    fun isStripMetadataEnabled(): Boolean {
-        return prefs.getBoolean(KEY_STRIP_METADATA, true)
+    private fun invalidatePlatformCache() {
+        cachedPlatformList = null
+        cachedPlatformMap = null
     }
 
+    fun isStripMetadataEnabled(): Boolean = cachedStripMetadata
+
     fun setStripMetadataEnabled(enabled: Boolean) {
+        cachedStripMetadata = enabled
         prefs.edit { putBoolean(KEY_STRIP_METADATA, enabled) }
     }
 
-    fun isPolishUrlsEnabled(): Boolean {
-        return prefs.getBoolean(KEY_POLISH_URLS, true)
-    }
+    fun isPolishUrlsEnabled(): Boolean = cachedPolishUrls
 
     fun setPolishUrlsEnabled(enabled: Boolean) {
+        cachedPolishUrls = enabled
         prefs.edit { putBoolean(KEY_POLISH_URLS, enabled) }
     }
 
-    fun isFullScreenEnabled(): Boolean {
-        return prefs.getBoolean(KEY_FULL_SCREEN, false)
-    }
+    fun isFullScreenEnabled(): Boolean = cachedFullScreen
 
     fun setFullScreenEnabled(enabled: Boolean) {
+        cachedFullScreen = enabled
         prefs.edit { putBoolean(KEY_FULL_SCREEN, enabled) }
     }
 
-    fun isBlockTrackersEnabled(): Boolean {
-        return prefs.getBoolean(KEY_BLOCK_TRACKERS, true)
-    }
+    fun isBlockTrackersEnabled(): Boolean = cachedBlockTrackers
 
     fun setBlockTrackersEnabled(enabled: Boolean) {
+        cachedBlockTrackers = enabled
         prefs.edit { putBoolean(KEY_BLOCK_TRACKERS, enabled) }
     }
 
-    fun isSecureScreenEnabled(): Boolean {
-        return prefs.getBoolean(KEY_SECURE_SCREEN, false)
-    }
+    fun isSecureScreenEnabled(): Boolean = cachedSecureScreen
 
     fun setSecureScreenEnabled(enabled: Boolean) {
+        cachedSecureScreen = enabled
         prefs.edit { putBoolean(KEY_SECURE_SCREEN, enabled) }
     }
 
-    fun isThirdPartyCookiesEnabled(): Boolean {
-        return prefs.getBoolean(KEY_THIRD_PARTY_COOKIES, false)
-    }
+    fun isThirdPartyCookiesEnabled(): Boolean = cachedThirdPartyCookies
 
     fun setThirdPartyCookiesEnabled(enabled: Boolean) {
+        cachedThirdPartyCookies = enabled
         prefs.edit { putBoolean(KEY_THIRD_PARTY_COOKIES, enabled) }
     }
 
-    fun getCobaltInstanceUrl(): String {
-        val url = prefs.getString(KEY_COBALT_INSTANCE, DEFAULT_COBALT_INSTANCE)
-        return if (!url.isNullOrBlank()) url.trim().trimEnd('/') else DEFAULT_COBALT_INSTANCE
-    }
+    fun getCobaltInstanceUrl(): String = cachedCobaltUrl
 
     fun setCobaltInstanceUrl(url: String) {
         val clean = url.trim().trimEnd('/')
@@ -263,6 +303,7 @@ class PlatformManager(private val context: Context) {
             clean.startsWith("http://", ignoreCase = true) || clean.startsWith("https://", ignoreCase = true) -> clean
             else -> "https://$clean"
         }
+        cachedCobaltUrl = formatted
         prefs.edit { putString(KEY_COBALT_INSTANCE, formatted) }
     }
 

@@ -54,12 +54,7 @@ class PlatformAdapter(
         fun bind(platform: Platform) {
             binding.tvPlatformName.text = platform.name
 
-            val domain = try {
-                URI(platform.url).host ?: platform.url
-            } catch (_: Exception) {
-                platform.url
-            }
-            binding.tvPlatformDomain.text = domain
+            binding.tvPlatformDomain.text = platform.host
             binding.ivPlatformIcon.setImageResource(platform.iconResId)
 
             binding.cardPlatform.setOnClickListener {

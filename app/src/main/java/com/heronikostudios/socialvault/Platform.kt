@@ -28,8 +28,10 @@ data class Platform(
             else -> R.drawable.ic_globe
         }
 
-    fun isDomainAllowed(targetUrl: String): Boolean {
-        val host = extractHost(targetUrl) ?: return false
+    val host: String by lazy { extractHost(url) ?: url }
+
+    fun isHostAllowed(host: String): Boolean {
+        val lower = host.lowercase()
         val domains = if (allowedDomains.isNotEmpty()) {
             allowedDomains
         } else {
@@ -37,29 +39,36 @@ data class Platform(
             listOf(mainHost)
         }
         return domains.any { domain ->
-            host == domain || host.endsWith(".$domain")
+            lower == domain || lower.endsWith(".$domain")
         }
     }
 
-    private fun extractHost(urlString: String): String? {
-        return try {
-            val uri = URI(urlString)
-            val scheme = uri.scheme?.lowercase()
-            if (scheme != null && scheme != "http" && scheme != "https") {
-                return null
-            }
-            uri.host?.lowercase()
-        } catch (_: Exception) {
-            try {
-                val base = urlString.substringBefore('?').substringBefore('#')
-                val uri = URI(base)
+    fun isDomainAllowed(targetUrl: String): Boolean {
+        val targetHost = extractHost(targetUrl) ?: return false
+        return isHostAllowed(targetHost)
+    }
+
+    companion object {
+        fun extractHost(urlString: String): String? {
+            return try {
+                val uri = URI(urlString)
                 val scheme = uri.scheme?.lowercase()
                 if (scheme != null && scheme != "http" && scheme != "https") {
                     return null
                 }
                 uri.host?.lowercase()
             } catch (_: Exception) {
-                null
+                try {
+                    val base = urlString.substringBefore('?').substringBefore('#')
+                    val uri = URI(base)
+                    val scheme = uri.scheme?.lowercase()
+                    if (scheme != null && scheme != "http" && scheme != "https") {
+                        return null
+                    }
+                    uri.host?.lowercase()
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
     }

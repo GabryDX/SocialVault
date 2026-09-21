@@ -24,8 +24,8 @@ data class TwitterStreamItem(
 
     val safeFileName: String
         get() {
-            val clean = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                .replace(Regex("\\s+"), " ")
+            val clean = title.replace(ILLEGAL_FILENAME_REGEX, "_")
+                .replace(WHITESPACE_REGEX, " ")
                 .trim()
                 .trimStart('.')
             val truncated = clean.take(100).trim().trimEnd('.')
@@ -33,6 +33,12 @@ data class TwitterStreamItem(
             return "$baseName.$fileExtension"
         }
 }
+
+private val ILLEGAL_FILENAME_REGEX = Regex("[\\\\/:*?\"<>|]")
+private val WHITESPACE_REGEX = Regex("\\s+")
+private val TWEET_ID_REGEX = Regex("""(?:status|statuses)/(\d+)""", RegexOption.IGNORE_CASE)
+private val T_CO_REGEX = Regex("""(^|https?://|www\.)t\.co(/|$)""")
+private val NEWLINE_REGEX = Regex("[\\r\\n]+")
 
 object TwitterStreamHelper {
 
@@ -56,7 +62,7 @@ object TwitterStreamHelper {
         val trimmed = urlOrId.trim()
         if (trimmed.all { it.isDigit() }) return trimmed
 
-        val match = Regex("""(?:status|statuses)/(\d+)""", RegexOption.IGNORE_CASE).find(trimmed)
+        val match = TWEET_ID_REGEX.find(trimmed)
         return match?.groupValues?.get(1)
     }
 
@@ -97,7 +103,7 @@ object TwitterStreamHelper {
         return lower.contains("twitter.com") ||
                 lower.contains("x.com") ||
                 lower.contains("twimg.com") ||
-                Regex("""(^|https?://|www\.)t\.co(/|$)""").containsMatchIn(lower)
+                T_CO_REGEX.containsMatchIn(lower)
     }
 
     /**
@@ -238,7 +244,7 @@ object TwitterStreamHelper {
         val userObj = root.optJSONObject("user")
         val userName = userObj?.optString("name")?.trim().orEmpty()
         val userScreenName = userObj?.optString("screen_name")?.trim().orEmpty()
-        val tweetText = root.optString("text").trim().replace(Regex("[\\r\\n]+"), " ")
+        val tweetText = root.optString("text").trim().replace(NEWLINE_REGEX, " ")
 
         val authorPrefix = when {
             userScreenName.isNotBlank() -> "@$userScreenName"

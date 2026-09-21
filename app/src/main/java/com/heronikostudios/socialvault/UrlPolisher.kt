@@ -100,6 +100,11 @@ object UrlPolisher {
         val trimmed = urlString.trim()
         if (trimmed.isEmpty()) return PolishResult(trimmed)
 
+        // Fast-path: if there is no query and no fragment, the URL cannot contain tracking parameters
+        if (!trimmed.contains('?') && !trimmed.contains('#')) {
+            return PolishResult(trimmed, emptyList(), false)
+        }
+
         val hasScheme = trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
         val fullUrl = if (hasScheme) trimmed else "https://$trimmed"
 
@@ -109,9 +114,15 @@ object UrlPolisher {
             return PolishResult(trimmed)
         }
 
-        val rawQuery = uri.rawQuery ?: return PolishResult(trimmed)
-        if (rawQuery.isBlank()) {
+        val rawQuery = uri.rawQuery
+        val fragment = uri.rawFragment
+
+        if (rawQuery.isNullOrBlank()) {
             val cleanUrl = if (trimmed.endsWith("?")) trimmed.dropLast(1) else trimmed
+            if (fragment != null && (fragment.startsWith("xtor=", ignoreCase = true) || fragment.startsWith("utm_", ignoreCase = true))) {
+                val cleanWithoutFragment = cleanUrl.substringBefore('#')
+                return PolishResult(cleanWithoutFragment, listOf(fragment.substringBefore('=')), true)
+            }
             return PolishResult(cleanUrl)
         }
 
@@ -138,20 +149,19 @@ object UrlPolisher {
             }
         }
 
-        if (removedParams.isEmpty()) {
-            return PolishResult(trimmed, emptyList(), false)
-        }
-
-        // Reconstruct URL preserving whether original had scheme
-        val baseWithoutQuery = trimmed.substringBefore('?')
-        val fragment = uri.rawFragment
-
         val cleanFragment = if (fragment != null && (fragment.startsWith("xtor=", ignoreCase = true) || fragment.startsWith("utm_", ignoreCase = true))) {
             removedParams.add(fragment.substringBefore('='))
             null
         } else {
             fragment
         }
+
+        if (removedParams.isEmpty()) {
+            return PolishResult(trimmed, emptyList(), false)
+        }
+
+        // Reconstruct URL preserving whether original had scheme
+        val baseWithoutQuery = trimmed.substringBefore('?')
 
         val newUrlBuilder = StringBuilder(baseWithoutQuery)
         if (preservedPairs.isNotEmpty()) {
@@ -169,16 +179,32 @@ object UrlPolisher {
     }
 
     private fun findDomainTrackingSet(host: String): Set<String> {
-        val matched = DOMAIN_TRACKING_PARAMS.entries.find { (domain, _) ->
-            host == domain || host.endsWith(".$domain")
+        var current: String? = host
+        while (current != null) {
+            val set = DOMAIN_TRACKING_PARAMS[current]
+            if (set != null) return set
+            val dot = current.indexOf('.')
+            current = if (dot != -1 && dot < current.length - 1) {
+                current.substring(dot + 1)
+            } else {
+                null
+            }
         }
-        return matched?.value ?: emptySet()
+        return emptySet()
     }
 
     private fun findProtectedParams(host: String): Set<String> {
-        val matched = PROTECTED_FUNCTIONAL_PARAMS.entries.find { (domain, _) ->
-            host == domain || host.endsWith(".$domain")
+        var current: String? = host
+        while (current != null) {
+            val set = PROTECTED_FUNCTIONAL_PARAMS[current]
+            if (set != null) return set
+            val dot = current.indexOf('.')
+            current = if (dot != -1 && dot < current.length - 1) {
+                current.substring(dot + 1)
+            } else {
+                null
+            }
         }
-        return matched?.value ?: emptySet()
+        return emptySet()
     }
 }

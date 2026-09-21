@@ -44,7 +44,7 @@ class FavouriteAdapter(
             binding.tvFavTitle.text = favourite.title
             binding.tvFavUrl.text = favourite.url
 
-            val platform = platformManager.getAllPlatforms().find { it.id == favourite.platformId }
+            val platform = platformManager.getPlatformById(favourite.platformId)
                 ?: platformManager.findMatchingPlatform(favourite.url)
             val iconRes = platform?.iconResId ?: R.drawable.ic_globe
             binding.ivPlatformIcon.setImageResource(iconRes)

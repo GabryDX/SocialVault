@@ -53,55 +53,68 @@ object TrackerBlocker {
         "connect.facebook.net"
     )
 
+    val EMPTY_BYTES = ByteArray(0)
+
     /**
      * Determines whether a resource request URL belongs to a known tracker, telemetry beacon,
      * or cross-site advertising script.
      *
-     * @param url The resource URL being requested.
-     * @param currentPlatform The platform context in which the request is made.
-     * @return true if the resource should be blocked, false otherwise.
+     * Overload taking android.net.Uri directly, avoiding string allocations on hot paths.
+     */
+    fun isTracker(uri: android.net.Uri, currentPlatform: Platform? = null): Boolean {
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") return false
+        val host = uri.host?.lowercase() ?: return false
+        return isTrackerHost(host, currentPlatform)
+    }
+
+    /**
+     * Determines whether a resource request URL string belongs to a known tracker, telemetry beacon,
+     * or cross-site advertising script.
      */
     fun isTracker(url: String?, currentPlatform: Platform? = null): Boolean {
         if (url.isNullOrBlank()) return false
         val host = extractHost(url) ?: return false
+        return isTrackerHost(host, currentPlatform)
+    }
 
-        // 1. Check universal tracker domains
-        for (tracker in UNIVERSAL_TRACKER_DOMAINS) {
-            if (host == tracker || host.endsWith(".$tracker")) {
-                return true
-            }
+    /**
+     * Checks if a domain or any of its parent domain segments match the tracker sets.
+     * Runs in O(1) time per segment (at most 2-3 set lookups) instead of linear scan.
+     */
+    fun isTrackerHost(host: String, currentPlatform: Platform? = null): Boolean {
+        // 1. Check universal tracker domains hierarchically
+        if (matchesTrackerDomain(host, UNIVERSAL_TRACKER_DOMAINS)) {
+            return true
         }
 
         // 2. Block Meta trackers (e.g. Facebook Pixel) on non-Meta platforms
         val platformId = currentPlatform?.id
         val isMetaPlatform = platformId == "facebook" || platformId == "instagram" || platformId == "threads"
-        if (!isMetaPlatform) {
-            for (tracker in META_TRACKER_DOMAINS) {
-                if (host == tracker || host.endsWith(".$tracker")) {
-                    return true
-                }
-            }
+        if (!isMetaPlatform && matchesTrackerDomain(host, META_TRACKER_DOMAINS)) {
+            return true
         }
 
         return false
     }
 
-    private fun extractHost(urlString: String): String? {
-        return try {
-            val uri = URI(urlString)
-            val scheme = uri.scheme?.lowercase()
-            if (scheme != "http" && scheme != "https") return null
-            uri.host?.lowercase()
-        } catch (_: Exception) {
-            try {
-                val clean = urlString.substringBefore('?').substringBefore('#')
-                val uri = URI(clean)
-                val scheme = uri.scheme?.lowercase()
-                if (scheme != "http" && scheme != "https") return null
-                uri.host?.lowercase()
-            } catch (_: Exception) {
+    private fun matchesTrackerDomain(host: String, trackerSet: Set<String>): Boolean {
+        var current: String? = host
+        while (current != null) {
+            if (trackerSet.contains(current)) {
+                return true
+            }
+            val dot = current.indexOf('.')
+            current = if (dot != -1 && dot < current.length - 1) {
+                current.substring(dot + 1)
+            } else {
                 null
             }
         }
+        return false
+    }
+
+    private fun extractHost(urlString: String): String? {
+        return Platform.extractHost(urlString)
     }
 }

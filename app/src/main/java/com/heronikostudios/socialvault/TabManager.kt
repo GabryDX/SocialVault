@@ -57,6 +57,7 @@ class TabManager {
         removed.webView.apply {
             stopLoading()
             visibility = View.GONE
+            (parent as? android.view.ViewGroup)?.removeView(this)
             destroy()
         }
 
@@ -83,6 +84,7 @@ class TabManager {
             tab.webView.apply {
                 stopLoading()
                 visibility = View.GONE
+                (parent as? android.view.ViewGroup)?.removeView(this)
                 destroy()
             }
         }

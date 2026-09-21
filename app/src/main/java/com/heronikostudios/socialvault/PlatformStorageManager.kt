@@ -11,11 +11,13 @@ import java.net.URI
 
 object PlatformStorageManager {
 
+    private val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9_]")
+
     /**
      * Derives a valid Chromium profile name uniquely identifying the platform container.
      */
     fun getProfileName(platform: Platform): String {
-        val cleanId = platform.id.lowercase().replace(Regex("[^a-z0-9_]"), "_")
+        val cleanId = platform.id.lowercase().replace(NON_ALPHANUMERIC_REGEX, "_")
         return "sv_profile_$cleanId"
     }
 

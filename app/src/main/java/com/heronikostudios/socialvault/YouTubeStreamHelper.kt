@@ -19,8 +19,8 @@ data class YouTubeStreamItem(
 
     val safeFileName: String
         get() {
-            val clean = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                .replace(Regex("\\s+"), " ")
+            val clean = title.replace(ILLEGAL_FILENAME_REGEX, "_")
+                .replace(WHITESPACE_REGEX, " ")
                 .trim()
                 .trimStart('.')
             val truncated = clean.take(100).trim().trimEnd('.')
@@ -28,6 +28,9 @@ data class YouTubeStreamItem(
             return "$baseName.$fileExtension"
         }
 }
+
+private val ILLEGAL_FILENAME_REGEX = Regex("[\\\\/:*?\"<>|]")
+private val WHITESPACE_REGEX = Regex("\\s+")
 
 object YouTubeStreamHelper {
 

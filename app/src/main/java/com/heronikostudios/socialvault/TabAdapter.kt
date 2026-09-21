@@ -13,6 +13,11 @@ class TabAdapter(
     private val onTabClose: (Tab) -> Unit
 ) : RecyclerView.Adapter<TabAdapter.TabViewHolder>() {
 
+    companion object {
+        private const val COLOR_ACTIVE_TAB = 0xFF38BDF8.toInt()
+        private const val COLOR_INACTIVE_TAB = 0xFF334155.toInt()
+    }
+
     fun updateTabs(newTabs: List<Tab>, newActiveTabId: String?) {
         tabs = newTabs
         activeTabId = newActiveTabId
@@ -45,10 +50,10 @@ class TabAdapter(
 
             val isActive = tab.id == activeTabId
             if (isActive) {
-                binding.cardTab.strokeColor = Color.parseColor("#38BDF8")
+                binding.cardTab.strokeColor = COLOR_ACTIVE_TAB
                 binding.cardTab.strokeWidth = 3
             } else {
-                binding.cardTab.strokeColor = Color.parseColor("#334155")
+                binding.cardTab.strokeColor = COLOR_INACTIVE_TAB
                 binding.cardTab.strokeWidth = 1
             }
 

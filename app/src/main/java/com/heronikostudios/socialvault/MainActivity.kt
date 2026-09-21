@@ -65,6 +65,11 @@ import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val PRIVACY_INJECTION_SCRIPT =
+            """(function(){try{if(!window.__gpc_injected){window.__gpc_injected=true;Object.defineProperty(navigator,'globalPrivacyControl',{value:true,writable:false,configurable:false});Object.defineProperty(navigator,'doNotTrack',{value:'1',writable:false,configurable:false});}if(!document.getElementById('__sv_safe_area_fix')){const s=document.createElement('style');s.id='__sv_safe_area_fix';s.textContent=':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();"""
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var platformManager: PlatformManager
     private val tabManager = TabManager()
@@ -221,7 +226,7 @@ class MainActivity : AppCompatActivity() {
                 val toPos = target.adapterPosition
                 if (fromPos != RecyclerView.NO_POSITION && toPos != RecyclerView.NO_POSITION) {
                     platformAdapter.onItemMove(fromPos, toPos)
-                    platformManager.movePlatform(fromPos, toPos)
+                    platformManager.movePlatform(fromPos, toPos, persistImmediately = false)
                     return true
                 }
                 return false
@@ -241,12 +246,14 @@ class MainActivity : AppCompatActivity() {
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
                 viewHolder.itemView.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start()
+                platformManager.persistPlatformsOrder()
             }
         })
 
         binding.rvPlatformsGrid.apply {
             layoutManager = GridLayoutManager(this@MainActivity, 2)
             adapter = platformAdapter
+            setHasFixedSize(true)
         }
         touchHelper.attachToRecyclerView(binding.rvPlatformsGrid)
 
@@ -270,6 +277,7 @@ class MainActivity : AppCompatActivity() {
         binding.rvDashboardFavourites.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = dashboardFavouriteAdapter
+            setHasFixedSize(true)
         }
 
         binding.btnViewAllFavourites.setOnClickListener {
@@ -556,6 +564,7 @@ class MainActivity : AppCompatActivity() {
         with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
+            cacheMode = WebSettings.LOAD_DEFAULT
             mediaPlaybackRequiresUserGesture = false
             useWideViewPort = true
             loadWithOverviewMode = true
@@ -782,15 +791,15 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?
             ): WebResourceResponse? {
                 if (platformManager.isBlockTrackersEnabled()) {
-                    val resourceUrl = request?.url?.toString()
-                    if (TrackerBlocker.isTracker(resourceUrl, platform)) {
+                    val uri = request?.url
+                    if (uri != null && TrackerBlocker.isTracker(uri, platform)) {
                         return WebResourceResponse(
                             "text/plain",
                             "UTF-8",
                             200,
                             "OK",
                             emptyMap(),
-                            ByteArrayInputStream(ByteArray(0))
+                            ByteArrayInputStream(TrackerBlocker.EMPTY_BYTES)
                         )
                     }
                 }
@@ -798,32 +807,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             private fun injectPrivacyControls(view: WebView?) {
-                val script = """
-                    (function() {
-                        try {
-                            if (!window.__gpc_injected) {
-                                window.__gpc_injected = true;
-                                Object.defineProperty(navigator, 'globalPrivacyControl', {
-                                    value: true,
-                                    writable: false,
-                                    configurable: false
-                                });
-                                Object.defineProperty(navigator, 'doNotTrack', {
-                                    value: '1',
-                                    writable: false,
-                                    configurable: false
-                                });
-                            }
-                            if (!document.getElementById('__sv_safe_area_fix')) {
-                                const style = document.createElement('style');
-                                style.id = '__sv_safe_area_fix';
-                                style.textContent = ':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';
-                                (document.head || document.documentElement).appendChild(style);
-                            }
-                        } catch (e) {}
-                    })();
-                """.trimIndent()
-                view?.evaluateJavascript(script, null)
+                view?.evaluateJavascript(PRIVACY_INJECTION_SCRIPT, null)
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -845,7 +829,6 @@ class MainActivity : AppCompatActivity() {
                     updateNavButtons()
                     updateFavouriteButtonState()
                 }
-                CookieManager.getInstance().flush()
             }
         }
 
@@ -1963,7 +1946,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openFavourite(favourite: Favourite) {
-        val platform = platformManager.getAllPlatforms().find { it.id == favourite.platformId }
+        val platform = platformManager.getPlatformById(favourite.platformId)
             ?: platformManager.findMatchingPlatform(favourite.url)
 
         if (platform != null) {

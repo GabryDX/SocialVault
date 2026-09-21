@@ -76,4 +76,15 @@ class TrackerBlockerTest {
         assertFalse(TrackerBlocker.isTracker("not-a-url"))
         assertFalse(TrackerBlocker.isTracker("ftp://example.com"))
     }
+
+    @Test
+    fun isTrackerHost_identifiesSubdomainsAndRejectsSpoofs() {
+        assertTrue(TrackerBlocker.isTrackerHost("analytics.google.com"))
+        assertTrue(TrackerBlocker.isTrackerHost("sub.doubleclick.net"))
+        assertTrue(TrackerBlocker.isTrackerHost("pagead2.googlesyndication.com"))
+        assertFalse(TrackerBlocker.isTrackerHost("evil-doubleclick.net"))
+        assertFalse(TrackerBlocker.isTrackerHost("mygoogle-analytics.com"))
+        assertFalse(TrackerBlocker.isTrackerHost("twitter.com"))
+        assertFalse(TrackerBlocker.isTrackerHost("reddit.com"))
+    }
 }
