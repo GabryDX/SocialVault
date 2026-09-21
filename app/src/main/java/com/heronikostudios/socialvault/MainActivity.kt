@@ -55,8 +55,11 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import android.graphics.Color
 import com.heronikostudios.socialvault.databinding.ActivityMainBinding
+import com.heronikostudios.socialvault.databinding.DialogEditFavouriteBinding
 import com.heronikostudios.socialvault.databinding.LayoutCobaltSheetBinding
+import com.heronikostudios.socialvault.databinding.LayoutFavouritesSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
 import java.util.UUID
 
@@ -67,6 +70,8 @@ class MainActivity : AppCompatActivity() {
     private val tabManager = TabManager()
 
     private lateinit var platformAdapter: PlatformAdapter
+    private lateinit var favouritesManager: FavouritesManager
+    private lateinit var dashboardFavouriteAdapter: FavouriteAdapter
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -126,6 +131,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         platformManager = PlatformManager(this)
+        favouritesManager = FavouritesManager(this)
+        favouritesManager.addChangeListener {
+            runOnUiThread {
+                updateDashboardFavourites()
+                updateFavouriteButtonState()
+            }
+        }
         applySecureScreenMode(platformManager.isSecureScreenEnabled())
 
         @Suppress("DEPRECATION")
@@ -242,6 +254,49 @@ class MainActivity : AppCompatActivity() {
             showResetDefaultsDialog()
         }
 
+        dashboardFavouriteAdapter = FavouriteAdapter(
+            favourites = emptyList(),
+            platformManager = platformManager,
+            onFavouriteClick = { fav ->
+                openFavourite(fav)
+            },
+            onFavouriteOptionsClick = { fav, anchorView ->
+                showFavouriteItemOptions(fav, anchorView, onUpdated = {
+                    updateDashboardFavourites()
+                })
+            }
+        )
+
+        binding.rvDashboardFavourites.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = dashboardFavouriteAdapter
+        }
+
+        binding.btnViewAllFavourites.setOnClickListener {
+            showFavouritesSheet()
+        }
+
+        binding.btnFavourite.setOnClickListener {
+            toggleFavouriteCurrentPage()
+        }
+
+        binding.btnFavourite.setOnLongClickListener {
+            val currentTab = tabManager.activeTab
+            val currentUrl = currentTab?.webView?.url ?: currentTab?.currentUrl
+            val fav = favouritesManager.getFavouriteForUrl(currentUrl)
+            if (fav != null) {
+                showEditFavouriteDialog(fav) {
+                    updateDashboardFavourites()
+                    updateFavouriteButtonState()
+                }
+            } else {
+                showFavouritesSheet()
+            }
+            true
+        }
+
+        updateDashboardFavourites()
+
         binding.btnShareLink.setOnClickListener {
             shareCurrentLink(copyOnly = false)
         }
@@ -276,6 +331,13 @@ class MainActivity : AppCompatActivity() {
             popup.menu.findItem(R.id.menu_full_screen)?.apply {
                 isChecked = if (isTabOpen) isFullScreenMode else platformManager.isFullScreenEnabled()
             }
+            val currentUrl = tabManager.activeTab?.webView?.url ?: tabManager.activeTab?.currentUrl
+            val isFav = favouritesManager.isFavourite(currentUrl)
+            popup.menu.findItem(R.id.menu_toggle_favourite)?.apply {
+                isVisible = isTabOpen
+                title = if (isFav) getString(R.string.action_unfavourite) else getString(R.string.action_favourite)
+                setIcon(if (isFav) R.drawable.ic_star else R.drawable.ic_star_border)
+            }
             popup.menu.findItem(R.id.menu_download_video)?.isVisible = isTabOpen
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
@@ -285,6 +347,14 @@ class MainActivity : AppCompatActivity() {
                     }
                     R.id.menu_copy_link -> {
                         shareCurrentLink(copyOnly = true)
+                        true
+                    }
+                    R.id.menu_toggle_favourite -> {
+                        toggleFavouriteCurrentPage()
+                        true
+                    }
+                    R.id.menu_view_favourites -> {
+                        showFavouritesSheet()
                         true
                     }
                     R.id.menu_open_url -> {
@@ -410,12 +480,14 @@ class MainActivity : AppCompatActivity() {
         binding.webViewContainer.visibility = View.GONE
         binding.dashboardView.visibility = View.VISIBLE
         binding.btnShareLink.visibility = View.GONE
+        binding.btnFavourite.visibility = View.GONE
         binding.btnOpenLink.visibility = View.VISIBLE
         binding.btnAddPlatform.visibility = View.VISIBLE
         binding.tvHeaderTitle.text = getString(R.string.app_name)
         binding.tvHeaderSubtitle.text = "Private & Sandboxed Social Hub"
         binding.progressBar.visibility = View.GONE
         updateNavButtons()
+        updateDashboardFavourites()
     }
 
     private fun openPlatformInNewTab(platform: Platform, targetUrl: String? = null) {
@@ -448,11 +520,13 @@ class MainActivity : AppCompatActivity() {
         binding.dashboardView.visibility = View.GONE
         binding.webViewContainer.visibility = View.VISIBLE
         binding.btnShareLink.visibility = View.VISIBLE
+        binding.btnFavourite.visibility = View.VISIBLE
         binding.btnOpenLink.visibility = View.GONE
         binding.btnAddPlatform.visibility = View.GONE
         binding.tvHeaderTitle.text = tab.platform.name
         binding.tvHeaderSubtitle.text = tab.platform.url
         updateNavButtons()
+        updateFavouriteButtonState()
         if (platformManager.isFullScreenEnabled()) {
             applyFullScreenMode(true)
         } else {
@@ -757,6 +831,7 @@ class MainActivity : AppCompatActivity() {
                 if (tabManager.activeTab?.webView == view) {
                     binding.progressBar.visibility = View.VISIBLE
                     updateNavButtons()
+                    updateFavouriteButtonState()
                 }
             }
 
@@ -768,6 +843,7 @@ class MainActivity : AppCompatActivity() {
                 if (tabManager.activeTab?.webView == view) {
                     binding.progressBar.visibility = View.GONE
                     updateNavButtons()
+                    updateFavouriteButtonState()
                 }
                 CookieManager.getInstance().flush()
             }
@@ -1820,6 +1896,232 @@ class MainActivity : AppCompatActivity() {
             }
             startActivity(Intent.createChooser(shareIntent, getString(R.string.share_link_chooser_title)))
         }
+    }
+
+    private fun updateDashboardFavourites() {
+        val allFavourites = favouritesManager.getAllFavourites()
+        if (allFavourites.isEmpty()) {
+            binding.cardFavouritesEmpty.visibility = View.VISIBLE
+            binding.rvDashboardFavourites.visibility = View.GONE
+            binding.btnViewAllFavourites.visibility = View.GONE
+        } else {
+            binding.cardFavouritesEmpty.visibility = View.GONE
+            binding.rvDashboardFavourites.visibility = View.VISIBLE
+            val previewList = allFavourites.take(5)
+            dashboardFavouriteAdapter.updateFavourites(previewList)
+            binding.btnViewAllFavourites.visibility = if (allFavourites.size > 5) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun updateFavouriteButtonState() {
+        val currentTab = tabManager.activeTab
+        if (currentTab == null || binding.dashboardView.visibility == View.VISIBLE) {
+            binding.btnFavourite.visibility = View.GONE
+            return
+        }
+        binding.btnFavourite.visibility = View.VISIBLE
+        val currentUrl = currentTab.webView.url ?: currentTab.currentUrl
+        val isFav = favouritesManager.isFavourite(currentUrl)
+        if (isFav) {
+            binding.btnFavourite.setImageResource(R.drawable.ic_star)
+            binding.btnFavourite.setColorFilter(Color.parseColor("#EAB308"))
+            binding.btnFavourite.contentDescription = getString(R.string.action_unfavourite)
+        } else {
+            binding.btnFavourite.setImageResource(R.drawable.ic_star_border)
+            binding.btnFavourite.setColorFilter(getColor(R.color.on_surface))
+            binding.btnFavourite.contentDescription = getString(R.string.action_favourite)
+        }
+    }
+
+    private fun toggleFavouriteCurrentPage() {
+        val currentTab = tabManager.activeTab
+        if (currentTab == null) {
+            Toast.makeText(this, "No active page to bookmark", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentUrl = currentTab.webView.url ?: currentTab.currentUrl
+        if (currentUrl.isNullOrBlank()) {
+            Toast.makeText(this, "No active page to bookmark", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (favouritesManager.isFavourite(currentUrl)) {
+            favouritesManager.removeFavouriteByUrl(currentUrl)
+            Toast.makeText(this, R.string.toast_favourite_removed, Toast.LENGTH_SHORT).show()
+        } else {
+            val title = currentTab.webView.title ?: currentTab.title
+            val platform = currentTab.platform
+            favouritesManager.addFavourite(
+                title = if (!title.isNullOrBlank()) title else platform.name,
+                url = currentUrl,
+                platform = platform
+            )
+            Toast.makeText(this, R.string.toast_favourite_added, Toast.LENGTH_SHORT).show()
+        }
+        updateFavouriteButtonState()
+        updateDashboardFavourites()
+    }
+
+    private fun openFavourite(favourite: Favourite) {
+        val platform = platformManager.getAllPlatforms().find { it.id == favourite.platformId }
+            ?: platformManager.findMatchingPlatform(favourite.url)
+
+        if (platform != null) {
+            val existingTab = tabManager.tabs.find { it.platform.id == platform.id }
+            if (existingTab != null) {
+                switchToTab(existingTab)
+                existingTab.webView.loadUrl(favourite.url)
+            } else {
+                openPlatformInNewTab(platform, favourite.url)
+            }
+        } else {
+            val host = try {
+                Uri.parse(favourite.url).host ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+            val genericPlatform = Platform(
+                id = favourite.platformId.ifBlank { "custom_" + UUID.randomUUID().toString().take(8) },
+                name = favourite.platformName.ifBlank { "Web" },
+                url = favourite.url,
+                iconType = "globe",
+                allowedDomains = if (host.isNotBlank()) listOf(host) else emptyList(),
+                isCustom = true
+            )
+            openPlatformInNewTab(genericPlatform, favourite.url)
+        }
+    }
+
+    private fun showFavouritesSheet() {
+        val sheetDialog = BottomSheetDialog(this)
+        val sheetBinding = LayoutFavouritesSheetBinding.inflate(layoutInflater)
+        sheetDialog.setContentView(sheetBinding.root)
+
+        val sheetAdapter = FavouriteAdapter(
+            favourites = favouritesManager.getAllFavourites(),
+            platformManager = platformManager,
+            onFavouriteClick = { fav ->
+                sheetDialog.dismiss()
+                openFavourite(fav)
+            },
+            onFavouriteOptionsClick = { fav, anchorView ->
+                showFavouriteItemOptions(fav, anchorView, onUpdated = {
+                    updateFavouritesSheetState(sheetBinding)
+                    updateDashboardFavourites()
+                })
+            }
+        )
+
+        sheetBinding.rvFavourites.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = sheetAdapter
+        }
+
+        sheetBinding.btnClearAllFavourites.setOnClickListener {
+            if (favouritesManager.getFavouritesCount() == 0) return@setOnClickListener
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dialog_clear_all_fav_title)
+                .setMessage(R.string.dialog_clear_all_fav_msg)
+                .setNegativeButton(R.string.btn_cancel, null)
+                .setPositiveButton(R.string.btn_clear_all) { _, _ ->
+                    favouritesManager.clearAll()
+                    updateFavouritesSheetState(sheetBinding)
+                    updateDashboardFavourites()
+                    updateFavouriteButtonState()
+                    Toast.makeText(this, "Favourites cleared", Toast.LENGTH_SHORT).show()
+                }
+                .show()
+        }
+
+        updateFavouritesSheetState(sheetBinding)
+        sheetDialog.show()
+    }
+
+    private fun updateFavouritesSheetState(sheetBinding: LayoutFavouritesSheetBinding) {
+        val list = favouritesManager.getAllFavourites()
+        (sheetBinding.rvFavourites.adapter as? FavouriteAdapter)?.updateFavourites(list)
+        if (list.isEmpty()) {
+            sheetBinding.layoutEmptyFavourites.visibility = View.VISIBLE
+            sheetBinding.rvFavourites.visibility = View.GONE
+            sheetBinding.btnClearAllFavourites.visibility = View.GONE
+        } else {
+            sheetBinding.layoutEmptyFavourites.visibility = View.GONE
+            sheetBinding.rvFavourites.visibility = View.VISIBLE
+            sheetBinding.btnClearAllFavourites.visibility = View.VISIBLE
+        }
+    }
+
+    private fun showFavouriteItemOptions(
+        favourite: Favourite,
+        anchorView: View,
+        onUpdated: () -> Unit
+    ) {
+        val popup = PopupMenu(this, anchorView)
+        popup.menuInflater.inflate(R.menu.menu_favourite_item, popup.menu)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_fav_open -> {
+                    openFavourite(favourite)
+                    true
+                }
+                R.id.action_fav_copy_link -> {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val clip = ClipData.newPlainText("Clean Link", favourite.url)
+                    clipboard?.setPrimaryClip(clip)
+                    Toast.makeText(this, R.string.toast_clean_link_copied, Toast.LENGTH_SHORT).show()
+                    true
+                }
+                R.id.action_fav_share -> {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, favourite.url)
+                        if (favourite.title.isNotBlank()) {
+                            putExtra(Intent.EXTRA_SUBJECT, favourite.title)
+                        }
+                    }
+                    startActivity(Intent.createChooser(shareIntent, getString(R.string.share_link_chooser_title)))
+                    true
+                }
+                R.id.action_fav_edit_title -> {
+                    showEditFavouriteDialog(favourite) {
+                        onUpdated()
+                    }
+                    true
+                }
+                R.id.action_fav_delete -> {
+                    favouritesManager.removeFavourite(favourite.id)
+                    Toast.makeText(this, R.string.toast_favourite_removed, Toast.LENGTH_SHORT).show()
+                    onUpdated()
+                    updateFavouriteButtonState()
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    private fun showEditFavouriteDialog(
+        favourite: Favourite,
+        onSaved: (() -> Unit)? = null
+    ) {
+        val dialogBinding = DialogEditFavouriteBinding.inflate(layoutInflater)
+        dialogBinding.etFavTitle.setText(favourite.title)
+        dialogBinding.tvFavUrlPreview.text = favourite.url
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dialog_edit_fav_title)
+            .setView(dialogBinding.root)
+            .setNegativeButton(R.string.btn_cancel, null)
+            .setPositiveButton(R.string.btn_save) { _, _ ->
+                val newTitle = dialogBinding.etFavTitle.text?.toString()?.trim().orEmpty()
+                if (newTitle.isNotBlank()) {
+                    favouritesManager.updateTitle(favourite.id, newTitle)
+                    Toast.makeText(this, R.string.toast_favourite_updated, Toast.LENGTH_SHORT).show()
+                    onSaved?.invoke()
+                }
+            }
+            .show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

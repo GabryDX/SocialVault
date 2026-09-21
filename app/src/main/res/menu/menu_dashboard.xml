@@ -19,6 +19,17 @@
         android:visible="false"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_toggle_favourite"
+        android:icon="@drawable/ic_star_border"
+        android:title="@string/action_favourite"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_view_favourites"
+        android:icon="@drawable/ic_bookmark"
+        android:title="@string/action_view_favourites"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_strip_metadata"
         android:checkable="true"
         android:title="Strip Metadata on Upload"

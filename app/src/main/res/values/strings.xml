@@ -75,4 +75,26 @@
     <string name="toast_trackers_disabled">Tracker and telemetry blocking disabled</string>
     <string name="toast_secure_screen_enabled">Screen &amp; App Switcher privacy enabled</string>
     <string name="toast_secure_screen_disabled">Screen &amp; App Switcher privacy disabled</string>
+    <string name="action_favourite">Add to Favourites</string>
+    <string name="action_unfavourite">Remove from Favourites</string>
+    <string name="action_view_favourites">Private Favourites</string>
+    <string name="title_private_favourites">Private Favourites</string>
+    <string name="desc_private_favourites">Stored locally on your device — outside social platform tracking</string>
+    <string name="empty_favourites_title">No favourites yet</string>
+    <string name="empty_favourites_desc">Tap the star icon while viewing any post, video, or profile to bookmark it privately.</string>
+    <string name="toast_favourite_added">Saved to Private Favourites</string>
+    <string name="toast_favourite_removed">Removed from Favourites</string>
+    <string name="toast_favourite_updated">Favourite title updated</string>
+    <string name="fav_action_open">Open in Sandboxed Tab</string>
+    <string name="fav_action_edit_title">Edit Title</string>
+    <string name="dialog_edit_fav_title">Edit Favourite Title</string>
+    <string name="hint_favourite_title">Title</string>
+    <string name="dialog_clear_all_fav_title">Clear All Favourites?</string>
+    <string name="dialog_clear_all_fav_msg">Delete all locally saved favourites? This action cannot be undone.</string>
+    <string name="btn_clear_all">Clear All</string>
+    <string name="dashboard_section_favourites">Private Favourites</string>
+    <string name="dashboard_favourites_view_all">View All</string>
+    <string name="dashboard_favourites_privacy_hint">Save posts &amp; profiles locally without letting platforms track your bookmarks.</string>
+    <string name="btn_save">Save</string>
+    <string name="desc_options">Options</string>
 </resources>
