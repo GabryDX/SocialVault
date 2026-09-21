@@ -152,7 +152,11 @@ class MainActivity : AppCompatActivity() {
                 val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
                 view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             }
-            insets
+            WindowInsetsCompat.CONSUMED
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.webViewContainer) { _, _ ->
+            WindowInsetsCompat.CONSUMED
         }
     }
 
@@ -440,6 +444,9 @@ class MainActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { _, _ ->
+            WindowInsetsCompat.CONSUMED
+        }
 
         val cookieManager = PlatformStorageManager.getCookieManagerForPlatform(platform)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -708,6 +715,12 @@ class MainActivity : AppCompatActivity() {
                                     writable: false,
                                     configurable: false
                                 });
+                            }
+                            if (!document.getElementById('__sv_safe_area_fix')) {
+                                const style = document.createElement('style');
+                                style.id = '__sv_safe_area_fix';
+                                style.textContent = ':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';
+                                (document.head || document.documentElement).appendChild(style);
                             }
                         } catch (e) {}
                     })();
