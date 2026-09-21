@@ -20,8 +20,11 @@
     <string name="action_open_new_tab">Open in New Tab</string>
     <string name="action_clear_cache">Clear Cache</string>
     <string name="action_wipe_data">Wipe Data (Log Out)</string>
-    <string name="action_clear_cache_app">Clear Cache for this App</string>
-    <string name="action_wipe_data_app">Wipe Data for this App (Log Out)</string>
+    <string name="action_reset_defaults">Reset Platforms to Defaults</string>
+    <string name="dialog_reset_defaults_title">Reset to Defaults</string>
+    <string name="dialog_reset_defaults_msg">Reset the dashboard to the default platforms and original order?</string>
+    <string name="btn_reset">Reset</string>
+    <string name="toast_dashboard_reset">Dashboard reset to defaults</string>
     <string name="dialog_clear_cache_title">Clear Cache for %s?</string>
     <string name="dialog_clear_cache_msg">Delete temporary web cache and media files for %s? Your login session and settings will remain intact.</string>
     <string name="dialog_wipe_data_title">Wipe All Data for %s?</string>

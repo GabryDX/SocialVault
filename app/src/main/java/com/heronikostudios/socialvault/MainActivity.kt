@@ -210,6 +210,10 @@ class MainActivity : AppCompatActivity() {
         }
         touchHelper.attachToRecyclerView(binding.rvPlatformsGrid)
 
+        binding.btnResetDefaultsDashboard.setOnClickListener {
+            showResetDefaultsDialog()
+        }
+
         binding.btnShareLink.setOnClickListener {
             shareCurrentLink(copyOnly = false)
         }
@@ -231,7 +235,6 @@ class MainActivity : AppCompatActivity() {
             val popup = PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.menu_dashboard, popup.menu)
             val isTabOpen = (tabManager.activeTab != null)
-            val activePlatform = tabManager.activeTab?.platform
             popup.menu.findItem(R.id.menu_share_link)?.isVisible = isTabOpen
             popup.menu.findItem(R.id.menu_copy_link)?.isVisible = isTabOpen
             popup.menu.findItem(R.id.menu_strip_metadata)?.isChecked =
@@ -246,18 +249,6 @@ class MainActivity : AppCompatActivity() {
                 isChecked = if (isTabOpen) isFullScreenMode else platformManager.isFullScreenEnabled()
             }
             popup.menu.findItem(R.id.menu_download_video)?.isVisible = isTabOpen
-            popup.menu.findItem(R.id.menu_clear_cache)?.apply {
-                isVisible = (activePlatform != null)
-                if (activePlatform != null) {
-                    title = "Clear Cache for ${activePlatform.name}"
-                }
-            }
-            popup.menu.findItem(R.id.menu_wipe_data)?.apply {
-                isVisible = (activePlatform != null)
-                if (activePlatform != null) {
-                    title = "Wipe Data for ${activePlatform.name}"
-                }
-            }
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_share_link -> {
@@ -270,10 +261,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     R.id.menu_open_url -> {
                         showOpenUrlDialog()
-                        true
-                    }
-                    R.id.menu_add_platform -> {
-                        showAddPlatformDialog()
                         true
                     }
                     R.id.menu_strip_metadata -> {
@@ -324,18 +311,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     R.id.menu_download_video -> {
                         tabManager.activeTab?.webView?.let { extractAndDownloadVideo(it) }
-                        true
-                    }
-                    R.id.menu_clear_cache -> {
-                        tabManager.activeTab?.platform?.let { showClearCacheDialog(it) }
-                        true
-                    }
-                    R.id.menu_wipe_data -> {
-                        tabManager.activeTab?.platform?.let { showWipeDataDialog(it) }
-                        true
-                    }
-                    R.id.menu_reset_defaults -> {
-                        showResetDefaultsDialog()
                         true
                     }
                     else -> false
@@ -991,12 +966,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showResetDefaultsDialog() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Reset to Defaults")
-            .setMessage("Reset the dashboard to the default platforms and original order?")
-            .setPositiveButton("Reset") { _, _ ->
+            .setTitle(R.string.dialog_reset_defaults_title)
+            .setMessage(R.string.dialog_reset_defaults_msg)
+            .setPositiveButton(R.string.btn_reset) { _, _ ->
                 val defaults = platformManager.resetToDefaults()
                 platformAdapter.updatePlatforms(defaults)
-                Toast.makeText(this, "Dashboard reset to defaults", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.toast_dashboard_reset, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()

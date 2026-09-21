@@ -135,11 +135,23 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="12dp"
                     android:gravity="center"
                     android:text="💡 Hold &amp; drag cards to reorder • Tap ⋮ to manage"
                     android:textColor="#64748B"
                     android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnResetDefaultsDashboard"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="16dp"
+                    android:text="@string/action_reset_defaults"
+                    android:textColor="#64748B"
+                    app:icon="@drawable/ic_restore"
+                    app:iconTint="#64748B" />
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
