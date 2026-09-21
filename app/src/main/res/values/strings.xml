@@ -97,4 +97,14 @@
     <string name="dashboard_favourites_privacy_hint">Save posts &amp; profiles locally without letting platforms track your bookmarks.</string>
     <string name="btn_save">Save</string>
     <string name="desc_options">Options</string>
+    <string name="action_download_images">Download Images from Page</string>
+    <string name="title_download_images">Download Images</string>
+    <string name="desc_download_images">Images and carousel photos on this page</string>
+    <string name="btn_download_all">Download All (%d)</string>
+    <string name="btn_download_selected">Download Selected (%d)</string>
+    <string name="btn_select_all">Select All</string>
+    <string name="btn_deselect_all">Deselect All</string>
+    <string name="toast_no_images_found">No downloadable images found on this page</string>
+    <string name="toast_downloading_images">Downloading %d images to Downloads…</string>
+    <string name="toast_extracting_images">Scanning page for images…</string>
 </resources>

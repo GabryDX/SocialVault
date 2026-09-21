@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0%20%2F%20GPL%203.0-blue.svg)](LICENSE)
 [![FOSS Audit](https://img.shields.io/badge/FOSS%20Audit-100%25%20Compliant-brightgreen.svg)](foss_audit.md)
-[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(73%2F73%20Tests)-blue.svg)](security_audit.md)
+[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(80%2F80%20Tests)-blue.svg)](security_audit.md)
 [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
 
 An open-source, privacy-first multi-platform social media vault and sandboxed web wrapper for Android.
@@ -63,7 +63,8 @@ Native social media apps often collect extensive device telemetry, access contac
   - **Native YouTube Video Extraction**: Direct extraction powered by `NewPipeExtractor` with quality and format selection dialog.
   - **Native X (Twitter) Video Extraction**: Direct MP4 video stream extraction via syndication API with resolution selection dialog.
   - **Immersive Native App Full Screen Mode**: Navigate any social media platform edge-to-edge as if using the native application. Respects hardware display cutouts and camera notches (`LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS` / `SHORT_EDGES`), consumes window insets, and resets safe-area bottom padding. Includes a floating 'Exit Full Screen' pill, system back gesture exit integration, and a toggle in the dashboard menu.
-  - **Media Downloader & Long-Press Saving**: Long-press any photo or media link in any social app to save it directly to your `Download/` folder, copy link, or open in a new tab.
+  - **Download Images from Page & Bulk Carousel Download**: Dedicated "Download Images from Page" menu action that scans posts and carousel albums, parses high-resolution `srcset` candidates, and presents a multi-selection bottom sheet for downloading single images or all photos in bulk with authenticated session forwarding.
+  - **Media Downloader & Overlay-Penetrating Long-Press**: Long-press any photo or media link to save it directly to your `Download/` folder. Intelligently penetrates transparent click-blocker overlays (e.g. Instagram `div._aagw`) via `elementsFromPoint` to access the media context menu directly.
   - **Safe Filename Resolution**: Automatic filename sanitization (`DownloadHelper`) preventing path traversal attacks (`../`) and inferring accurate MIME types and extensions (preventing generic `.bin` files).
   - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.
   - **HTML5 Video Extraction**: Dedicated "Download Video from Page" menu action to inspect and download direct video streams.
@@ -93,7 +94,7 @@ Native social media apps often collect extensive device telemetry, access contac
 ./gradlew assembleRelease
 # Output: app/build/outputs/apk/release/SocialVault-v1.0.apk
 
-# Run unit tests (73 tests across 10 suites) and lint:
+# Run unit tests (80 tests across 11 suites) and lint:
 ./gradlew check lint
 ```
 

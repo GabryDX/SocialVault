@@ -59,6 +59,7 @@ import android.graphics.Color
 import com.heronikostudios.socialvault.databinding.ActivityMainBinding
 import com.heronikostudios.socialvault.databinding.DialogEditFavouriteBinding
 import com.heronikostudios.socialvault.databinding.LayoutCobaltSheetBinding
+import com.heronikostudios.socialvault.databinding.LayoutDownloadImagesSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutFavouritesSheetBinding
 import com.heronikostudios.socialvault.databinding.LayoutTabSwitcherSheetBinding
 import java.util.UUID
@@ -348,6 +349,7 @@ class MainActivity : AppCompatActivity() {
                 title = if (isFav) getString(R.string.action_unfavourite) else getString(R.string.action_favourite)
                 setIcon(if (isFav) R.drawable.ic_star else R.drawable.ic_star_border)
             }
+            popup.menu.findItem(R.id.menu_download_images)?.isVisible = isTabOpen
             popup.menu.findItem(R.id.menu_download_video)?.isVisible = isTabOpen
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
@@ -415,6 +417,10 @@ class MainActivity : AppCompatActivity() {
                             val msg = if (newState) getString(R.string.toast_full_screen_enabled) else getString(R.string.toast_full_screen_disabled)
                             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                         }
+                        true
+                    }
+                    R.id.menu_download_images -> {
+                        tabManager.activeTab?.webView?.let { extractAndDownloadImages(it) }
                         true
                     }
                     R.id.menu_download_video -> {
@@ -595,10 +601,20 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        var lastTouchX = 0f
+        var lastTouchY = 0f
+        webView.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                lastTouchX = event.x
+                lastTouchY = event.y
+            }
+            false
+        }
+
         webView.setOnLongClickListener { v ->
-            val result = (v as? WebView)?.hitTestResult ?: return@setOnLongClickListener false
-            val extra = result.extra
-            when (result.type) {
+            val result = (v as? WebView)?.hitTestResult
+            val extra = result?.extra
+            val handled = when (result?.type) {
                 WebView.HitTestResult.IMAGE_TYPE,
                 WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
                     if (!extra.isNullOrBlank()) {
@@ -637,6 +653,55 @@ class MainActivity : AppCompatActivity() {
                 }
                 else -> false
             }
+
+            if (handled) return@setOnLongClickListener true
+
+            // Fallback for Instagram & modern sites with overlay divs / touch blockers:
+            // Query elements at touch point directly using elementsFromPoint(cssX, cssY)
+            val density = resources.displayMetrics.density
+            val cssX = (lastTouchX / density).toInt()
+            val cssY = (lastTouchY / density).toInt()
+            val js = """
+                (function(x, y) {
+                    try {
+                        var elements = document.elementsFromPoint(x, y);
+                        if (!elements || elements.length === 0) return '';
+                        for (var i = 0; i < elements.length; i++) {
+                            var el = elements[i];
+                            if (el.tagName === 'IMG') {
+                                return el.currentSrc || el.src || '';
+                            }
+                            var childImg = el.querySelector('img');
+                            if (childImg && (childImg.currentSrc || childImg.src)) {
+                                return childImg.currentSrc || childImg.src;
+                            }
+                            var bg = window.getComputedStyle(el).backgroundImage;
+                            if (bg && bg.indexOf('url(') !== -1) {
+                                var m = bg.match(/url\(['"]?(.*?)['"]?\)/);
+                                if (m && m[1] && m[1].indexOf('data:') !== 0) return m[1];
+                            }
+                        }
+                    } catch(e) {}
+                    return '';
+                })($cssX, $cssY);
+            """.trimIndent()
+
+            webView.evaluateJavascript(js) { res ->
+                val imgUrl = res?.trim('"', ' ', '\'')?.takeIf { it.startsWith("http") }
+                if (!imgUrl.isNullOrBlank()) {
+                    DownloadHelper.showMediaContextMenu(
+                        context = this@MainActivity,
+                        mediaUrl = imgUrl,
+                        isImage = true,
+                        userAgent = webView.settings.userAgentString,
+                        cookieManager = cookieManager,
+                        onOpenInNewTab = { mediaUrl ->
+                            openMediaInNewTab(mediaUrl)
+                        }
+                    )
+                }
+            }
+            true
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -1466,6 +1531,132 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun extractAndDownloadImages(webView: WebView) {
+        val currentTab = tabManager.activeTab
+        val platform = currentTab?.platform
+        Toast.makeText(this, R.string.toast_extracting_images, Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(ImageExtractorHelper.EXTRACTION_SCRIPT) { jsonResult ->
+            val images = ImageExtractorHelper.parseExtractedImages(jsonResult, platform?.id)
+            if (images.isNotEmpty()) {
+                showDownloadImagesSheet(images, platform, webView)
+            } else {
+                Toast.makeText(this, R.string.toast_no_images_found, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showDownloadImagesSheet(
+        images: List<ExtractedImage>,
+        platform: Platform?,
+        webView: WebView
+    ) {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = LayoutDownloadImagesSheetBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        val cookieManager = platform?.let { PlatformStorageManager.getCookieManagerForPlatform(it) }
+            ?: CookieManager.getInstance()
+        val userAgent = webView.settings.userAgentString
+
+        sheetBinding.tvImagesSheetSubtitle.text = if (images.size == 1) {
+            "Found 1 image on this page"
+        } else {
+            "Found ${images.size} images • Tap to select or bulk download"
+        }
+
+        fun updateDownloadButtonText(selectedCount: Int) {
+            if (selectedCount == images.size && images.size > 1) {
+                sheetBinding.btnDownloadSelected.text = getString(R.string.btn_download_all, selectedCount)
+                sheetBinding.btnToggleSelectAll.text = getString(R.string.btn_deselect_all)
+            } else {
+                sheetBinding.btnDownloadSelected.text = getString(R.string.btn_download_selected, selectedCount)
+                sheetBinding.btnToggleSelectAll.text = if (selectedCount == 0) {
+                    getString(R.string.btn_select_all)
+                } else {
+                    getString(R.string.btn_deselect_all)
+                }
+            }
+            sheetBinding.btnDownloadSelected.isEnabled = selectedCount > 0
+        }
+
+        lateinit var adapter: ExtractedImageAdapter
+
+        adapter = ExtractedImageAdapter(
+            images = images,
+            cookieManager = cookieManager,
+            userAgent = userAgent,
+            onSelectionChanged = {
+                updateDownloadButtonText(adapter.selectedImages.size)
+            },
+            onSingleDownloadClick = { item, position ->
+                val safeName = ImageExtractorHelper.generateSafeFileName(
+                    item = item,
+                    platformId = platform?.id,
+                    index = position,
+                    total = images.size
+                )
+                DownloadHelper.downloadFile(
+                    context = this@MainActivity,
+                    url = item.url,
+                    userAgent = userAgent,
+                    cookieManager = cookieManager,
+                    customFileName = safeName,
+                    isImage = true
+                )
+            }
+        )
+
+        sheetBinding.rvExtractedImages.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            this.adapter = adapter
+            setHasFixedSize(true)
+        }
+
+        updateDownloadButtonText(images.size)
+
+        sheetBinding.btnToggleSelectAll.setOnClickListener {
+            val allSelected = adapter.selectedImages.size == images.size
+            adapter.selectAll(!allSelected)
+        }
+
+        sheetBinding.btnCancelDownload.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnDownloadSelected.setOnClickListener {
+            val toDownload = adapter.selectedImages
+            if (toDownload.isEmpty()) return@setOnClickListener
+
+            val total = toDownload.size
+            Toast.makeText(
+                this,
+                getString(R.string.toast_downloading_images, total),
+                Toast.LENGTH_SHORT
+            ).show()
+
+            for ((idx, item) in toDownload.withIndex()) {
+                val safeName = ImageExtractorHelper.generateSafeFileName(
+                    item = item,
+                    platformId = platform?.id,
+                    index = idx,
+                    total = total
+                )
+                DownloadHelper.downloadFile(
+                    context = this@MainActivity,
+                    url = item.url,
+                    userAgent = userAgent,
+                    cookieManager = cookieManager,
+                    customFileName = safeName,
+                    isImage = true
+                )
+            }
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     private fun handleYouTubeDownload(videoUrl: String) {

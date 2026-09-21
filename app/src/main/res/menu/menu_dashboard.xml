@@ -56,6 +56,12 @@
         android:title="@string/menu_full_screen"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_download_images"
+        android:icon="@drawable/ic_image"
+        android:title="@string/action_download_images"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_download_video"
         android:icon="@drawable/ic_download"
         android:title="Download Video from Page"
