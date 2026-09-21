@@ -341,9 +341,9 @@ object ImageExtractorHelper {
 
     /**
      * JavaScript to detect the active video or story media (image or video) currently displayed.
-     * Checks exact story ID in URL, viewport center elements (elementsFromPoint), HTML5 videos,
-     * React Fiber state on the active viewer, scored DOM images, and Performance Resource Timing,
-     * while strictly filtering out profile pictures and avatars.
+     * When viewing Stories or Highlights, strictly confines all DOM and React Fiber searches to
+     * the active story viewer overlay to prevent intercepting the page below.
+     * Accurately extracts videos, high-res photos, and multi-slide highlight reels.
      */
     val DETECT_ACTIVE_MEDIA_SCRIPT = """
         (function() {
@@ -362,9 +362,9 @@ object ImageExtractorHelper {
                         u.indexOf('avatar') !== -1 ||
                         u.indexOf('emoji') !== -1 ||
                         u.indexOf('favicon') !== -1 ||
-                        /(s|p)\d{2,3}x\d{2,3}/.test(u) ||
                         u.indexOf('s150x150') !== -1 ||
-                        u.indexOf('s320x320') !== -1) {
+                        u.indexOf('s320x320') !== -1 ||
+                        /(s|p)(150|100|80|75|64|50)x\d{2,3}/.test(u)) {
                         return true;
                     }
                     if (el) {
@@ -377,7 +377,7 @@ object ImageExtractorHelper {
                         var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
                         var w = (r && r.width) || el.offsetWidth || 0;
                         var h = (r && r.height) || el.offsetHeight || 0;
-                        if (w > 0 && h > 0 && (w < 140 || h < 140)) {
+                        if (w > 0 && h > 0 && w < 100 && h < 100) {
                             return true;
                         }
                     }
@@ -444,44 +444,90 @@ object ImageExtractorHelper {
                 var videoUrl = null;
                 var imageUrl = null;
 
-                var cx = window.innerWidth / 2;
-                var cy = window.innerHeight / 2;
+                // Detect if viewing Instagram Stories or Highlights
+                var isStoryPage = window.location.pathname.indexOf('/stories/') !== -1;
+                var storyViewer = null;
 
-                // Priority 1: Match target Story ID from URL in React Fiber
-                var storyIdMatch = window.location.pathname.match(/\/stories\/[^\/]+\/(\d+)/);
-                var targetStoryId = storyIdMatch ? storyIdMatch[1] : null;
+                // Locate the active Story/Highlight Modal or Section
+                var closeBtn = document.querySelector('[aria-label="Close"], [aria-label="Chiudi"], [aria-label="Cerrar"], [aria-label="Fermer"], [aria-label*="lose"]');
+                if (closeBtn) {
+                    storyViewer = closeBtn.closest('section, [role="dialog"], [role="presentation"]');
+                    if (!storyViewer && closeBtn.parentElement) {
+                        var p = closeBtn.parentElement;
+                        while (p && p !== document.body && p !== document.documentElement) {
+                            var pst = window.getComputedStyle(p);
+                            if (pst.position === 'fixed' || pst.position === 'absolute' || parseInt(pst.zIndex, 10) > 0) {
+                                storyViewer = p;
+                                break;
+                            }
+                            p = p.parentElement;
+                        }
+                    }
+                }
 
-                if (targetStoryId) {
-                    var allElements = document.querySelectorAll('section, [role="dialog"], [role="region"], div');
-                    for (var i = 0; i < allElements.length; i++) {
-                        var el = allElements[i];
-                        var fKey = Object.keys(el).find(function(k) {
+                if (!storyViewer) {
+                    var pBar = document.querySelector('[role="progressbar"], div[style*="scaleX"]');
+                    if (pBar) {
+                        storyViewer = pBar.closest('section, [role="dialog"], [role="presentation"]');
+                    }
+                }
+
+                if (!storyViewer && isStoryPage) {
+                    var overlays = document.querySelectorAll('section, [role="dialog"]');
+                    for (var oi = 0; oi < overlays.length; oi++) {
+                        var cand = overlays[oi];
+                        var cst = window.getComputedStyle(cand);
+                        if (cst.position === 'fixed' || cst.position === 'absolute' || parseInt(cst.zIndex, 10) > 0) {
+                            storyViewer = cand;
+                            break;
+                        }
+                    }
+                }
+
+                // ==============================================================
+                // BRANCH A: WE ARE VIEWING STORIES / HIGHLIGHTS
+                // STRICTLY SCOPE SEARCH TO THE STORY VIEWER SO IT NEVER INTERCEPTS
+                // THE PAGE BELOW!
+                // ==============================================================
+                if (isStoryPage || storyViewer) {
+                    // 1. Try React Fiber on the storyViewer or its elements
+                    var fiberNodes = [storyViewer];
+                    if (storyViewer && storyViewer.querySelectorAll) {
+                        var subNodes = storyViewer.querySelectorAll('section, div, video, img');
+                        for (var sn = 0; sn < Math.min(subNodes.length, 30); sn++) {
+                            fiberNodes.push(subNodes[sn]);
+                        }
+                    }
+
+                    for (var fn = 0; fn < fiberNodes.length; fn++) {
+                        var node = fiberNodes[fn];
+                        if (!node) continue;
+                        var fKey = Object.keys(node).find(function(k) {
                             return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance');
                         });
                         if (!fKey) continue;
-                        var curr = el[fKey];
+                        var curr = node[fKey];
                         var depth = 0;
-                        while (curr && depth < 20) {
-                            var p = curr.memoizedProps;
-                            if (p) {
-                                var it = p.item || p.story || p.media || p.post;
-                                if (it && (it.id == targetStoryId || it.pk == targetStoryId || (it.id && it.id.indexOf(targetStoryId) === 0))) {
-                                    var media = extractMediaFromItem(it);
-                                    if (media) {
-                                        if (media.videoUrl && !videoUrl) videoUrl = media.videoUrl;
-                                        if (media.imageUrl && !imageUrl) imageUrl = media.imageUrl;
-                                        if (videoUrl && imageUrl) break;
+                        while (curr && depth < 25) {
+                            var props = curr.memoizedProps;
+                            if (props) {
+                                var itm = props.item || props.story || props.media;
+                                if (itm) {
+                                    var ext = extractMediaFromItem(itm);
+                                    if (ext) {
+                                        if (ext.videoUrl && !videoUrl) videoUrl = ext.videoUrl;
+                                        if (ext.imageUrl && !imageUrl) imageUrl = ext.imageUrl;
                                     }
                                 }
-                                if (p.reel && p.reel.items && Array.isArray(p.reel.items)) {
-                                    for (var rk = 0; rk < p.reel.items.length; rk++) {
-                                        var rItem = p.reel.items[rk];
-                                        if (rItem && (rItem.id == targetStoryId || rItem.pk == targetStoryId || (rItem.id && rItem.id.indexOf(targetStoryId) === 0))) {
-                                            var rMedia = extractMediaFromItem(rItem);
-                                            if (rMedia) {
-                                                if (rMedia.videoUrl && !videoUrl) videoUrl = rMedia.videoUrl;
-                                                if (rMedia.imageUrl && !imageUrl) imageUrl = rMedia.imageUrl;
-                                            }
+                                var reelItems = (props.reel && props.reel.items) || (props.highlight && props.highlight.items) || (props.items && Array.isArray(props.items) && props.items);
+                                if (reelItems && Array.isArray(reelItems) && reelItems.length > 0) {
+                                    var activeIdx = props.currentIndex || props.activeItemIndex || props.selectedItemIndex || 0;
+                                    var rItem = reelItems[activeIdx] || reelItems[0];
+                                    if (rItem) {
+                                        var rExt = extractMediaFromItem(rItem);
+                                        if (rExt) {
+                                            if (rExt.videoUrl && !videoUrl) videoUrl = rExt.videoUrl;
+                                            if (rExt.imageUrl && !imageUrl) imageUrl = rExt.imageUrl;
                                         }
                                     }
                                 }
@@ -489,134 +535,114 @@ object ImageExtractorHelper {
                             curr = curr.return;
                             depth++;
                         }
-                        if (videoUrl || imageUrl) break;
-                    }
-                }
-
-                // Priority 2: Inspect elements at the CENTER of the screen (elementsFromPoint)
-                var centerElements = (document.elementsFromPoint ? document.elementsFromPoint(cx, cy) : [document.elementFromPoint(cx, cy)]).filter(Boolean);
-
-                for (var c = 0; c < centerElements.length; c++) {
-                    var cEl = centerElements[c];
-
-                    // Check for Video element
-                    var vEl = cEl.tagName === 'VIDEO' ? cEl : (cEl.querySelector ? cEl.querySelector('video') : null);
-                    if (vEl) {
-                        var vsrc = clean(vEl.currentSrc || vEl.src);
-                        if (vsrc && vsrc.indexOf('blob:') === -1 && !videoUrl) {
-                            videoUrl = vsrc;
-                        }
-                        var vSource = vEl.querySelector('source[src]');
-                        if (vSource && !videoUrl) {
-                            var sSrc = clean(vSource.src);
-                            if (sSrc && sSrc.indexOf('blob:') === -1) videoUrl = sSrc;
-                        }
-                        if (vEl.poster && !imageUrl) {
-                            var pSrc = clean(vEl.poster);
-                            if (pSrc && !isAvatar(pSrc, null)) imageUrl = pSrc;
-                        }
+                        if (videoUrl && imageUrl) break;
                     }
 
-                    // Check for Image element
-                    var imgCandidates = [];
-                    if (cEl.tagName === 'IMG') {
-                        imgCandidates.push(cEl);
-                    } else if (cEl.querySelectorAll) {
-                        var foundImgs = cEl.querySelectorAll('img');
-                        for (var fi = 0; fi < foundImgs.length; fi++) imgCandidates.push(foundImgs[fi]);
-                    }
-
-                    for (var im = 0; im < imgCandidates.length; im++) {
-                        var candidate = imgCandidates[im];
-                        var cr = candidate.getBoundingClientRect();
-                        var coversCenter = (cr.left <= cx && cr.right >= cx && cr.top <= cy && cr.bottom >= cy);
-                        var isStorySize = (cr.width >= 160 && cr.height >= 220) || (candidate.naturalWidth >= 300 && candidate.naturalHeight >= 300);
-
-                        var bestCandidateSrc = getBestFromSrcset(candidate.srcset) || candidate.currentSrc || candidate.src;
-                        if (coversCenter && isStorySize && !isAvatar(bestCandidateSrc, candidate) && !imageUrl) {
-                            var cleanedCand = clean(bestCandidateSrc);
-                            if (cleanedCand && !isAvatar(cleanedCand, candidate)) {
-                                imageUrl = cleanedCand;
+                    // 2. Search DOM inside storyViewer ONLY
+                    if (storyViewer) {
+                        // Check for video inside storyViewer
+                        if (!videoUrl) {
+                            var storyVideos = storyViewer.querySelectorAll('video');
+                            for (var sv = 0; sv < storyVideos.length; sv++) {
+                                var sVid = storyVideos[sv];
+                                var vUrl = clean(sVid.currentSrc || sVid.src);
+                                if (vUrl && vUrl.indexOf('blob:') === -1) videoUrl = vUrl;
+                                var sSource = sVid.querySelector('source[src]');
+                                if (sSource && !videoUrl) {
+                                    var sn = clean(sSource.src);
+                                    if (sn && sn.indexOf('blob:') === -1) videoUrl = sn;
+                                }
+                                if (sVid.poster && !imageUrl) {
+                                    var pUrl = clean(sVid.poster);
+                                    if (pUrl && !isAvatar(pUrl, null)) imageUrl = pUrl;
+                                }
+                                if (videoUrl) break;
                             }
                         }
-                    }
 
-                    // Check React Fiber on center elements
-                    var cfKey = Object.keys(cEl).find(function(k) {
-                        return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance');
-                    });
-                    if (cfKey) {
-                        var cCurr = cEl[cfKey];
-                        var cDepth = 0;
-                        while (cCurr && cDepth < 25) {
-                            var cp = cCurr.memoizedProps;
-                            if (cp) {
-                                var cItem = cp.item || cp.story || cp.media || cp.post;
-                                if (cItem) {
-                                    var extracted = extractMediaFromItem(cItem);
-                                    if (extracted) {
-                                        if (extracted.videoUrl && !videoUrl) videoUrl = extracted.videoUrl;
-                                        if (extracted.imageUrl && !imageUrl) imageUrl = extracted.imageUrl;
-                                    }
+                        // Check for image inside storyViewer
+                        if (!imageUrl) {
+                            var storyImgs = storyViewer.querySelectorAll('img');
+                            var bestStoryArea = 0;
+                            for (var si = 0; si < storyImgs.length; si++) {
+                                var sImg = storyImgs[si];
+                                var sW = sImg.offsetWidth || sImg.naturalWidth || 0;
+                                var sH = sImg.offsetHeight || sImg.naturalHeight || 0;
+                                var candSrc = getBestFromSrcset(sImg.srcset) || sImg.currentSrc || sImg.src;
+                                var cleaned = clean(candSrc);
+                                if (!cleaned || isAvatar(cleaned, sImg)) continue;
+                                var sArea = sW * sH;
+                                if (sArea >= bestStoryArea) {
+                                    bestStoryArea = sArea;
+                                    imageUrl = cleaned;
                                 }
                             }
-                            cCurr = cCurr.return;
-                            cDepth++;
                         }
+                    }
+
+                    // 3. Performance Resource Timing for active story media loaded recently
+                    if ((!imageUrl || !videoUrl) && window.performance && performance.getEntriesByType) {
+                        var entries = performance.getEntriesByType('resource');
+                        var now = performance.now();
+                        for (var re = entries.length - 1; re >= 0; re--) {
+                            var res = entries[re];
+                            if ((now - res.responseEnd) > 30000) continue;
+                            var resName = res.name || '';
+                            if (!imageUrl && resName.indexOf('.fbcdn.net') !== -1 && resName.indexOf('t51.2885-15') !== -1 && !isAvatar(resName, null)) {
+                                var cRes = clean(resName);
+                                if (cRes && !isAvatar(cRes, null)) imageUrl = cRes;
+                            }
+                            if (!videoUrl && resName.indexOf('.fbcdn.net') !== -1 && (resName.indexOf('.mp4') !== -1 || resName.indexOf('t50.2886-16') !== -1)) {
+                                var cVid = clean(resName);
+                                if (cVid) videoUrl = cVid;
+                            }
+                            if (videoUrl && imageUrl) break;
+                        }
+                    }
+
+                    // For stories/highlights: NEVER fall back to searching the page below!
+                    if (videoUrl || imageUrl) {
+                        return JSON.stringify({
+                            videoUrl: videoUrl,
+                            imageUrl: imageUrl,
+                            hasVideo: !!videoUrl,
+                            hasImage: !!imageUrl
+                        });
+                    }
+                    return null;
+                }
+
+                // ==============================================================
+                // BRANCH B: REGULAR WEBPAGE (Not Stories / Highlights)
+                // ==============================================================
+                var cx = window.innerWidth / 2;
+                var cy = window.innerHeight / 2;
+
+                var videos = Array.from(document.querySelectorAll('video'));
+                for (var vIdx = 0; vIdx < videos.length; vIdx++) {
+                    var vid = videos[vIdx];
+                    var isFs = document.fullscreenElement === vid || document.webkitFullscreenElement === vid;
+                    var isPlaying = !vid.paused || vid.currentTime > 0;
+                    var vr = vid.getBoundingClientRect();
+                    var isCentered = (vr.left <= cx && vr.right >= cx && vr.top <= cy && vr.bottom >= cy);
+                    var isVisible = (vr.width > 150 && vr.height > 150) || vid.videoWidth > 0;
+
+                    if (isFs || isPlaying || (isCentered && isVisible)) {
+                        var vUrl = clean(vid.currentSrc || vid.src);
+                        if (vUrl && vUrl.indexOf('blob:') === -1) videoUrl = vUrl;
+                        var srcNode = vid.querySelector('source[src]');
+                        if (srcNode && !videoUrl) {
+                            var sn = clean(srcNode.src);
+                            if (sn && sn.indexOf('blob:') === -1) videoUrl = sn;
+                        }
+                        if (vid.poster && !imageUrl) {
+                            var pUrl = clean(vid.poster);
+                            if (pUrl && !isAvatar(pUrl, null)) imageUrl = pUrl;
+                        }
+                        if (videoUrl) break;
                     }
                 }
 
-                // Priority 3: HTML5 Fullscreen / Active Video Elements
-                if (!videoUrl) {
-                    var videos = Array.from(document.querySelectorAll('video'));
-                    for (var vIdx = 0; vIdx < videos.length; vIdx++) {
-                        var vid = videos[vIdx];
-                        var isFs = document.fullscreenElement === vid || document.webkitFullscreenElement === vid;
-                        var isPlaying = !vid.paused || vid.currentTime > 0;
-                        var vr = vid.getBoundingClientRect();
-                        var isCentered = (vr.left <= cx && vr.right >= cx && vr.top <= cy && vr.bottom >= cy);
-                        var isVisible = (vr.width > 150 && vr.height > 150) || vid.videoWidth > 0;
-
-                        if (isFs || isPlaying || (isCentered && isVisible)) {
-                            var vUrl = clean(vid.currentSrc || vid.src);
-                            if (vUrl && vUrl.indexOf('blob:') === -1) videoUrl = vUrl;
-                            var srcNode = vid.querySelector('source[src]');
-                            if (srcNode && !videoUrl) {
-                                var sn = clean(srcNode.src);
-                                if (sn && sn.indexOf('blob:') === -1) videoUrl = sn;
-                            }
-                            if (vid.poster && !imageUrl) {
-                                var pUrl = clean(vid.poster);
-                                if (pUrl && !isAvatar(pUrl, null)) imageUrl = pUrl;
-                            }
-                            var vfKey = Object.keys(vid).find(function(k) {
-                                return k.startsWith('__reactFiber') || k.startsWith('__reactInternalInstance');
-                            });
-                            if (vfKey) {
-                                var vCurr = vid[vfKey];
-                                var vDepth = 0;
-                                while (vCurr && vDepth < 25) {
-                                    var vp = vCurr.memoizedProps;
-                                    if (vp) {
-                                        var vItem = vp.item || vp.post || vp.media || vp.story;
-                                        if (vItem) {
-                                            var vExt = extractMediaFromItem(vItem);
-                                            if (vExt) {
-                                                if (vExt.videoUrl && !videoUrl) videoUrl = vExt.videoUrl;
-                                                if (vExt.imageUrl && !imageUrl) imageUrl = vExt.imageUrl;
-                                            }
-                                        }
-                                    }
-                                    vCurr = vCurr.return;
-                                    vDepth++;
-                                }
-                            }
-                            if (videoUrl) break;
-                        }
-                    }
-                }
-
-                // Priority 4: Centered Image Candidate Scoring across all DOM <img>
                 if (!imageUrl) {
                     var allImgs = Array.from(document.querySelectorAll('img'));
                     var bestScore = -1;
@@ -628,7 +654,6 @@ object ImageExtractorHelper {
                         var sWidth = sr.width || sImg.offsetWidth || sImg.naturalWidth || 0;
                         var sHeight = sr.height || sImg.offsetHeight || sImg.naturalHeight || 0;
 
-                        // Skip small elements (avatars, icons, badges)
                         if (sWidth < 140 || sHeight < 140) continue;
 
                         var candidateUrl = getBestFromSrcset(sImg.srcset) || sImg.currentSrc || sImg.src;
@@ -647,30 +672,6 @@ object ImageExtractorHelper {
 
                     if (bestUrlCandidate) {
                         imageUrl = bestUrlCandidate;
-                    }
-                }
-
-                // Priority 5: Performance Resource Timing fallback for active Story
-                if ((!imageUrl || !videoUrl) && window.location.pathname.indexOf('/stories/') !== -1 && window.performance && performance.getEntriesByType) {
-                    var entries = performance.getEntriesByType('resource');
-                    var now = performance.now();
-                    for (var re = entries.length - 1; re >= 0; re--) {
-                        var res = entries[re];
-                        if ((now - res.responseEnd) > 25000) continue;
-                        var resName = res.name || '';
-                        if (!imageUrl && resName.indexOf('.fbcdn.net') !== -1 && resName.indexOf('t51.2885-15') !== -1 && !isAvatar(resName, null)) {
-                            var cleanedRes = clean(resName);
-                            if (cleanedRes && !isAvatar(cleanedRes, null)) {
-                                imageUrl = cleanedRes;
-                            }
-                        }
-                        if (!videoUrl && resName.indexOf('.fbcdn.net') !== -1 && (resName.indexOf('.mp4') !== -1 || resName.indexOf('t50.2886-16') !== -1)) {
-                            var cleanedVidRes = clean(resName);
-                            if (cleanedVidRes) {
-                                videoUrl = cleanedVidRes;
-                            }
-                        }
-                        if (videoUrl && imageUrl) break;
                     }
                 }
 

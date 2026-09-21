@@ -658,7 +658,14 @@ class MainActivity : AppCompatActivity() {
 
             if (handled) return@setOnLongClickListener true
 
-            // Fallback for Instagram & modern sites with overlay divs / touch blockers:
+            val currentUrl = webView.url ?: ""
+            val isStory = currentUrl.contains("/stories/")
+            if (isStory) {
+                detectAndDownloadActiveMedia(webView, platform)
+                return@setOnLongClickListener true
+            }
+
+            // Fallback for modern sites with overlay divs / touch blockers:
             // Query elements at touch point directly using elementsFromPoint(cssX, cssY)
             val density = resources.displayMetrics.density
             val cssX = (lastTouchX / density).toInt()
@@ -667,40 +674,75 @@ class MainActivity : AppCompatActivity() {
                 (function(x, y) {
                     try {
                         var elements = document.elementsFromPoint(x, y);
-                        if (!elements || elements.length === 0) return '';
+                        if (!elements || elements.length === 0) return null;
                         for (var i = 0; i < elements.length; i++) {
                             var el = elements[i];
-                            if (el.tagName === 'IMG') {
-                                return el.currentSrc || el.src || '';
+                            var tag = el.tagName.toUpperCase();
+                            if (tag === 'IMG') {
+                                var isrc = el.currentSrc || el.src;
+                                if (isrc && isrc.indexOf('http') === 0) return JSON.stringify({ url: isrc, isImage: true });
                             }
-                            var childImg = el.querySelector('img');
-                            if (childImg && (childImg.currentSrc || childImg.src)) {
-                                return childImg.currentSrc || childImg.src;
+                            if (tag === 'VIDEO') {
+                                var vsrc = el.currentSrc || el.src || (el.querySelector('source') ? el.querySelector('source').src : '');
+                                if (vsrc && vsrc.indexOf('http') === 0) return JSON.stringify({ url: vsrc, isImage: false });
+                            }
+                            var blocked = ['BODY', 'HTML', 'MAIN', 'SECTION', 'ARTICLE', 'NAV', 'HEADER', 'FOOTER', 'FORM'];
+                            if (blocked.indexOf(tag) === -1 && el.children && el.children.length <= 2) {
+                                var cImg = el.querySelector(':scope > img');
+                                if (cImg) {
+                                    var cisrc = cImg.currentSrc || cImg.src;
+                                    if (cisrc && cisrc.indexOf('http') === 0) return JSON.stringify({ url: cisrc, isImage: true });
+                                }
+                                var cVid = el.querySelector(':scope > video');
+                                if (cVid) {
+                                    var cvsrc = cVid.currentSrc || cVid.src || (cVid.querySelector('source') ? cVid.querySelector('source').src : '');
+                                    if (cvsrc && cvsrc.indexOf('http') === 0) return JSON.stringify({ url: cvsrc, isImage: false });
+                                }
                             }
                             var bg = window.getComputedStyle(el).backgroundImage;
                             if (bg && bg.indexOf('url(') !== -1) {
-                                var m = bg.match(/url\(['"]?(.*?)['"]?\)/);
-                                if (m && m[1] && m[1].indexOf('data:') !== 0) return m[1];
+                                var m = bg.match(/url\(['"]?(https?:\/\/[^'"]+)['"]?\)/);
+                                if (m && m[1]) return JSON.stringify({ url: m[1], isImage: true });
                             }
                         }
                     } catch(e) {}
-                    return '';
+                    return null;
                 })($cssX, $cssY);
             """.trimIndent()
 
             webView.evaluateJavascript(js) { res ->
-                val imgUrl = res?.trim('"', ' ', '\'')?.takeIf { it.startsWith("http") }
-                if (!imgUrl.isNullOrBlank()) {
-                    DownloadHelper.showMediaContextMenu(
-                        context = this@MainActivity,
-                        mediaUrl = imgUrl,
-                        isImage = true,
-                        userAgent = webView.settings.userAgentString,
-                        cookieManager = cookieManager,
-                        onOpenInNewTab = { mediaUrl ->
-                            openMediaInNewTab(mediaUrl)
+                val clean = res?.trim('"', ' ', '\n')
+                if (!clean.isNullOrBlank() && clean != "null") {
+                    try {
+                        val obj = org.json.JSONObject(clean.replace("\\\"", "\""))
+                        val url = obj.optString("url", "")
+                        val isImage = obj.optBoolean("isImage", true)
+                        if (url.startsWith("http://") || url.startsWith("https://")) {
+                            DownloadHelper.showMediaContextMenu(
+                                context = this@MainActivity,
+                                mediaUrl = url,
+                                isImage = isImage,
+                                userAgent = webView.settings.userAgentString,
+                                cookieManager = cookieManager,
+                                onOpenInNewTab = { mediaUrl ->
+                                    openMediaInNewTab(mediaUrl)
+                                }
+                            )
                         }
-                    )
+                    } catch (_: Exception) {
+                        if (clean.startsWith("http://") || clean.startsWith("https://")) {
+                            DownloadHelper.showMediaContextMenu(
+                                context = this@MainActivity,
+                                mediaUrl = clean,
+                                isImage = true,
+                                userAgent = webView.settings.userAgentString,
+                                cookieManager = cookieManager,
+                                onOpenInNewTab = { mediaUrl ->
+                                    openMediaInNewTab(mediaUrl)
+                                }
+                            )
+                        }
+                    }
                 }
             }
             true
