@@ -9,6 +9,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableStringBuilder
@@ -17,16 +18,21 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.WindowManager
 import kotlin.math.hypot
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
+import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebSettingsCompat
+import java.io.ByteArrayInputStream
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -106,6 +112,15 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         platformManager = PlatformManager(this)
+        applySecureScreenMode(platformManager.isSecureScreenEnabled())
+
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            WebView.startSafeBrowsing(this) { _ -> }
+        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.START_SAFE_BROWSING)) {
+            WebViewCompat.startSafeBrowsing(this) { _ -> }
+        }
+
         Thread { MetadataStripper.cleanOldCache(this) }.start()
 
         setupInsets()
@@ -221,6 +236,10 @@ class MainActivity : AppCompatActivity() {
                 platformManager.isStripMetadataEnabled()
             popup.menu.findItem(R.id.menu_polish_urls)?.isChecked =
                 platformManager.isPolishUrlsEnabled()
+            popup.menu.findItem(R.id.menu_block_trackers)?.isChecked =
+                platformManager.isBlockTrackersEnabled()
+            popup.menu.findItem(R.id.menu_secure_screen)?.isChecked =
+                platformManager.isSecureScreenEnabled()
             popup.menu.findItem(R.id.menu_full_screen)?.apply {
                 isChecked = if (isTabOpen) isFullScreenMode else platformManager.isFullScreenEnabled()
             }
@@ -269,6 +288,23 @@ class MainActivity : AppCompatActivity() {
                         item.isChecked = newState
                         val status = if (newState) "enabled (default)" else "disabled"
                         Toast.makeText(this, "URL polishing $status", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_block_trackers -> {
+                        val newState = !platformManager.isBlockTrackersEnabled()
+                        platformManager.setBlockTrackersEnabled(newState)
+                        item.isChecked = newState
+                        val msg = if (newState) getString(R.string.toast_trackers_enabled) else getString(R.string.toast_trackers_disabled)
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_secure_screen -> {
+                        val newState = !platformManager.isSecureScreenEnabled()
+                        platformManager.setSecureScreenEnabled(newState)
+                        item.isChecked = newState
+                        applySecureScreenMode(newState)
+                        val msg = if (newState) getString(R.string.toast_secure_screen_enabled) else getString(R.string.toast_secure_screen_disabled)
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                         true
                     }
                     R.id.menu_full_screen -> {
@@ -443,12 +479,16 @@ class MainActivity : AppCompatActivity() {
             loadWithOverviewMode = true
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             allowFileAccess = false
-            allowContentAccess = true
+            allowContentAccess = false
+        }
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
+            WebSettingsCompat.setSafeBrowsingEnabled(webView.settings, true)
         }
 
         cookieManager.apply {
             setAcceptCookie(true)
-            setAcceptThirdPartyCookies(webView, true)
+            setAcceptThirdPartyCookies(webView, platformManager.isThirdPartyCookiesEnabled())
         }
 
         webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
@@ -586,6 +626,11 @@ class MainActivity : AppCompatActivity() {
                 // Explicit defense-in-depth: disallow web geolocation requests unconditionally
                 callback?.invoke(origin, false, false)
             }
+
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                // Explicit defense-in-depth: disallow web camera, mic, and sensor permissions
+                request?.deny()
+            }
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -650,7 +695,51 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): WebResourceResponse? {
+                if (platformManager.isBlockTrackersEnabled()) {
+                    val resourceUrl = request?.url?.toString()
+                    if (TrackerBlocker.isTracker(resourceUrl, platform)) {
+                        return WebResourceResponse(
+                            "text/plain",
+                            "UTF-8",
+                            200,
+                            "OK",
+                            emptyMap(),
+                            ByteArrayInputStream(ByteArray(0))
+                        )
+                    }
+                }
+                return super.shouldInterceptRequest(view, request)
+            }
+
+            private fun injectPrivacyControls(view: WebView?) {
+                val script = """
+                    (function() {
+                        try {
+                            if (!window.__gpc_injected) {
+                                window.__gpc_injected = true;
+                                Object.defineProperty(navigator, 'globalPrivacyControl', {
+                                    value: true,
+                                    writable: false,
+                                    configurable: false
+                                });
+                                Object.defineProperty(navigator, 'doNotTrack', {
+                                    value: '1',
+                                    writable: false,
+                                    configurable: false
+                                });
+                            }
+                        } catch (e) {}
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(script, null)
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                injectPrivacyControls(view)
                 if (tabManager.activeTab?.webView == view) {
                     binding.progressBar.visibility = View.VISIBLE
                     updateNavButtons()
@@ -658,6 +747,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                injectPrivacyControls(view)
                 if (!url.isNullOrBlank()) {
                     tabManager.tabs.find { it.webView == view }?.currentUrl = url
                 }
@@ -908,6 +998,14 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
+    }
+
+    private fun applySecureScreenMode(enabled: Boolean) {
+        if (enabled) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
     }
 
     private fun applyFullScreenMode(enabled: Boolean, showToast: Boolean = false) {

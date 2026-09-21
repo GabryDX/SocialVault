@@ -62,4 +62,10 @@
     <string name="x_select_quality_title">Select Download Quality</string>
     <string name="x_no_video_open">Please open or play an X post with video to download it</string>
     <string name="x_extract_failed">Could not extract direct video streams. Choose an alternative:</string>
+    <string name="menu_block_trackers">Block Trackers &amp; Telemetry</string>
+    <string name="menu_secure_screen">Screen &amp; App Switcher Privacy</string>
+    <string name="toast_trackers_enabled">Tracker and telemetry blocking enabled (default)</string>
+    <string name="toast_trackers_disabled">Tracker and telemetry blocking disabled</string>
+    <string name="toast_secure_screen_enabled">Screen &amp; App Switcher privacy enabled</string>
+    <string name="toast_secure_screen_disabled">Screen &amp; App Switcher privacy disabled</string>
 </resources>

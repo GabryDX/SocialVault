@@ -23,6 +23,9 @@ class PlatformManager(private val context: Context) {
         private const val KEY_STRIP_METADATA = "pref_strip_metadata"
         private const val KEY_POLISH_URLS = "pref_polish_urls"
         private const val KEY_FULL_SCREEN = "pref_full_screen_mode"
+        private const val KEY_BLOCK_TRACKERS = "pref_block_trackers"
+        private const val KEY_SECURE_SCREEN = "pref_secure_screen"
+        private const val KEY_THIRD_PARTY_COOKIES = "pref_third_party_cookies"
 
         val DEFAULT_PLATFORMS = listOf(
             Platform(
@@ -220,6 +223,30 @@ class PlatformManager(private val context: Context) {
 
     fun setFullScreenEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_FULL_SCREEN, enabled) }
+    }
+
+    fun isBlockTrackersEnabled(): Boolean {
+        return prefs.getBoolean(KEY_BLOCK_TRACKERS, true)
+    }
+
+    fun setBlockTrackersEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_BLOCK_TRACKERS, enabled) }
+    }
+
+    fun isSecureScreenEnabled(): Boolean {
+        return prefs.getBoolean(KEY_SECURE_SCREEN, false)
+    }
+
+    fun setSecureScreenEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_SECURE_SCREEN, enabled) }
+    }
+
+    fun isThirdPartyCookiesEnabled(): Boolean {
+        return prefs.getBoolean(KEY_THIRD_PARTY_COOKIES, false)
+    }
+
+    fun setThirdPartyCookiesEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_THIRD_PARTY_COOKIES, enabled) }
     }
 
     fun findMatchingPlatform(targetUrl: String): Platform? {

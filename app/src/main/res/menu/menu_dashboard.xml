@@ -34,6 +34,16 @@
         android:title="@string/menu_polish_urls"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_block_trackers"
+        android:checkable="true"
+        android:title="@string/menu_block_trackers"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_secure_screen"
+        android:checkable="true"
+        android:title="@string/menu_secure_screen"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_full_screen"
         android:checkable="true"
         android:icon="@drawable/ic_fullscreen"
