@@ -68,6 +68,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PRIVACY_INJECTION_SCRIPT =
             """(function(){try{if(!window.__gpc_injected){window.__gpc_injected=true;Object.defineProperty(navigator,'globalPrivacyControl',{value:true,writable:false,configurable:false});Object.defineProperty(navigator,'doNotTrack',{value:'1',writable:false,configurable:false});}if(!document.getElementById('__sv_safe_area_fix')){const s=document.createElement('style');s.id='__sv_safe_area_fix';s.textContent=':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();"""
+        private const val DETECT_VIDEO_ORIENTATION_SCRIPT =
+            """(function(){try{var v=document.fullscreenElement||document.webkitFullscreenElement;if(!v||v.tagName!=='VIDEO'){var videos=document.getElementsByTagName('video');for(var i=0;i<videos.length;i++){if(!videos[i].paused&&videos[i].videoWidth>0&&videos[i].videoHeight>0){v=videos[i];break;}}if(!v&&videos.length>0&&videos[0].videoWidth>0&&videos[0].videoHeight>0){v=videos[0];}}if(v&&v.videoWidth>0&&v.videoHeight>0){return (v.videoWidth>=v.videoHeight)?'landscape':'portrait';}}catch(e){}return '';})();"""
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -681,7 +683,7 @@ class MainActivity : AppCompatActivity() {
                 binding.topBar.visibility = View.GONE
                 binding.bottomNavBar.visibility = View.GONE
 
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                applyFullscreenOrientation(platform, webView)
                 setSystemBarsVisible(false)
             }
 
@@ -833,6 +835,35 @@ class MainActivity : AppCompatActivity() {
         }
 
         return webView
+    }
+
+    private fun applyFullscreenOrientation(platform: Platform, webView: WebView) {
+        val currentUrl = webView.url ?: platform.url
+        when (FullscreenOrientationHelper.determineTargetOrientation(platform.id, currentUrl)) {
+            ScreenOrientationTarget.PORTRAIT -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+            ScreenOrientationTarget.SENSOR_LANDSCAPE -> {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+            ScreenOrientationTarget.DYNAMIC_EVALUATION -> {
+                webView.evaluateJavascript(DETECT_VIDEO_ORIENTATION_SCRIPT) { rawResult ->
+                    if (customView == null) return@evaluateJavascript
+                    val result = rawResult?.trim('"', ' ', '\'')?.lowercase()
+                    when (result) {
+                        "portrait" -> {
+                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        }
+                        "landscape" -> {
+                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        }
+                        else -> {
+                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun hideCustomView() {

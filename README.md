@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0%20%2F%20GPL%203.0-blue.svg)](LICENSE)
 [![FOSS Audit](https://img.shields.io/badge/FOSS%20Audit-100%25%20Compliant-brightgreen.svg)](foss_audit.md)
-[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(66%2F66%20Tests)-blue.svg)](security_audit.md)
+[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(73%2F73%20Tests)-blue.svg)](security_audit.md)
 [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
 
 An open-source, privacy-first multi-platform social media vault and sandboxed web wrapper for Android.
@@ -67,7 +67,7 @@ Native social media apps often collect extensive device telemetry, access contac
   - **Safe Filename Resolution**: Automatic filename sanitization (`DownloadHelper`) preventing path traversal attacks (`../`) and inferring accurate MIME types and extensions (preventing generic `.bin` files).
   - **DownloadManager Integration**: System-managed background downloads with download progress notifications, authenticated session cookie forwarding, and base64 image decoding.
   - **HTML5 Video Extraction**: Dedicated "Download Video from Page" menu action to inspect and download direct video streams.
-  - Fullscreen HTML5 video playback with automatic landscape rotation.
+  - **Adaptive Fullscreen Video & Stories Orientation**: HTML5 video playback and stories adapt their orientation intelligently: vertical-first platforms (Instagram Stories/Reels, TikTok, Threads) and Shorts remain vertical in portrait, while landscape platforms (YouTube, Twitch) rotate to landscape, with dynamic aspect-ratio detection for other services.
   - Modern file chooser for media uploads with private sandbox caching.
   - Pull-to-refresh (`SwipeRefreshLayout`) and loading progress indicator.
 - **Modern Android Architecture**:
@@ -93,7 +93,7 @@ Native social media apps often collect extensive device telemetry, access contac
 ./gradlew assembleRelease
 # Output: app/build/outputs/apk/release/SocialVault-v1.0.apk
 
-# Run unit tests (66 tests across 9 suites) and lint:
+# Run unit tests (73 tests across 10 suites) and lint:
 ./gradlew check lint
 ```
 

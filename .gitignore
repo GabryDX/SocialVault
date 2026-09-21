@@ -84,3 +84,7 @@ google-services.json
 images/background
 images/icons
 images/monochrome
+
+# Release drafts
+RELEASE_NOTES*.md
+

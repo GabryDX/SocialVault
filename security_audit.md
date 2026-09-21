@@ -5,7 +5,7 @@
 **Repository:** `https://github.com/GabryDX/SocialVault`  
 **Audit Date:** September 21, 2026  
 **Auditor / Framework:** Static Application Security Testing (SAST) & OWASP Mobile Application Security Verification Standard (MASVS v2.0)  
-**Security Status:** **Hardened & Verified (0 High / 0 Medium Vulnerabilities — 66/66 Unit Tests Passing)**  
+**Security Status:** **Hardened & Verified (0 High / 0 Medium Vulnerabilities — 73/73 Unit Tests Passing)**  
 
 ---
 
@@ -274,7 +274,7 @@ JAVA_HOME=/home/trollo/.jdks/jdk-21.0.12.1+1 ANDROID_HOME=/home/trollo/AndroidSD
   ./gradlew testDebugUnitTest lintDebug assembleRelease
 ```
 
-### Complete Test Suite Execution Output (66 Tests / 9 Suites)
+### Complete Test Suite Execution Output (73 Tests / 10 Suites)
 
 ```
 <testsuite name="com.heronikostudios.socialvault.DownloadHelperTest" tests="11" skipped="0" failures="0" errors="0">
@@ -300,6 +300,15 @@ JAVA_HOME=/home/trollo/.jdks/jdk-21.0.12.1+1 ANDROID_HOME=/home/trollo/AndroidSD
   <testcase name="testRemoveFavourite_byIdAndByUrl"/>
   <testcase name="testChangeListener_calledOnModifications"/>
   <testcase name="testNormalizeUrl_stripsTrackingAndTrailingSlash"/>
+</testsuite>
+<testsuite name="com.heronikostudios.socialvault.FullscreenOrientationHelperTest" tests="7" skipped="0" failures="0" errors="0">
+  <testcase name="testInstagram_alwaysReturnsPortrait"/>
+  <testcase name="testTikTokAndThreads_alwaysReturnPortrait"/>
+  <testcase name="testYouTube_shortsReturnsPortrait_standardReturnsLandscape"/>
+  <testcase name="testTwitch_returnsLandscape"/>
+  <testcase name="testGenericPlatforms_reelsOrStoriesUrlReturnsPortrait"/>
+  <testcase name="testGenericPlatforms_standardUrlsReturnDynamicEvaluation"/>
+  <testcase name="testCaseInsensitivityAndNullUrl"/>
 </testsuite>
 <testsuite name="com.heronikostudios.socialvault.MetadataStripperTest" tests="2" skipped="0" failures="0" errors="0">
   <testcase name="isImageExtension_rejectsNonImageFormats"/>
@@ -368,7 +377,7 @@ JAVA_HOME=/home/trollo/.jdks/jdk-21.0.12.1+1 ANDROID_HOME=/home/trollo/AndroidSD
 - **SARIF Results:** `app/build/reports/lint-results-debug.sarif`
 - **Security Vulnerabilities:** **0**
 - **Correctness Warnings:** **0**
-- **Unit Test Coverage:** **66/66 Tests Passing (100%)**
+- **Unit Test Coverage:** **73/73 Tests Passing (100%)**
 
 ---
 
