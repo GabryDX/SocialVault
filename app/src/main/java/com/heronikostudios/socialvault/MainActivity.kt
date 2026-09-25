@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val PRIVACY_INJECTION_SCRIPT =
-            """(function(){try{if(!window.__gpc_injected){window.__gpc_injected=true;Object.defineProperty(navigator,'globalPrivacyControl',{value:true,writable:false,configurable:false});Object.defineProperty(navigator,'doNotTrack',{value:'1',writable:false,configurable:false});}if(!document.getElementById('__sv_safe_area_fix')){const s=document.createElement('style');s.id='__sv_safe_area_fix';s.textContent=':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';(document.head||document.documentElement).appendChild(s);}}catch(e){}})();"""
+            """(function(){try{if(!window.__gpc_injected){window.__gpc_injected=true;Object.defineProperty(navigator,'globalPrivacyControl',{value:true,writable:false,configurable:false});Object.defineProperty(navigator,'doNotTrack',{value:'1',writable:false,configurable:false});}if(!document.getElementById('__sv_safe_area_fix')){const s=document.createElement('style');s.id='__sv_safe_area_fix';s.textContent=':root { --safe-area-inset-bottom: 0px !important; --sab: 0px !important; }';(document.head||document.documentElement).appendChild(s);}if(window.visualViewport&&!window.__sv_viewport_bound){window.__sv_viewport_bound=true;window.visualViewport.addEventListener('resize',function(){var a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)){if(a.scrollIntoViewIfNeeded){a.scrollIntoViewIfNeeded();}else{a.scrollIntoView({block:'nearest'});}}});}}catch(e){}})();"""
         private const val DETECT_VIDEO_ORIENTATION_SCRIPT =
             """(function(){try{var v=document.fullscreenElement||document.webkitFullscreenElement;if(!v||v.tagName!=='VIDEO'){var videos=document.getElementsByTagName('video');for(var i=0;i<videos.length;i++){if(!videos[i].paused&&videos[i].videoWidth>0&&videos[i].videoHeight>0){v=videos[i];break;}}if(!v&&videos.length>0&&videos[0].videoWidth>0&&videos[0].videoHeight>0){v=videos[0];}}if(v&&v.videoWidth>0&&v.videoHeight>0){return (v.videoWidth>=v.videoHeight)?'landscape':'portrait';}}catch(e){}return '';})();"""
     }
@@ -178,6 +178,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var cachedCutoutTop = 0
+    private var isImeVisible: Boolean = false
+
+    private fun updateBottomNavVisibility() {
+        val shouldShow = !isImeVisible && !isFullScreenMode && customView == null
+        binding.bottomNavBar.visibility = if (shouldShow) View.VISIBLE else View.GONE
+    }
 
     private fun setupInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { view, insets ->
@@ -187,16 +193,43 @@ class MainActivity : AppCompatActivity() {
                 cachedCutoutTop = maxOf(cachedCutoutTop, directCutoutTop)
             }
 
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            val previouslyImeVisible = isImeVisible
+            isImeVisible = insets.isVisible(WindowInsetsCompat.Type.ime()) || (imeInsets.bottom > navBars.bottom)
+            updateBottomNavVisibility()
+
+            if (!previouslyImeVisible && isImeVisible) {
+                view.postDelayed({
+                    tabManager.activeTab?.webView?.evaluateJavascript(
+                        """(function(){var a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)){if(a.scrollIntoViewIfNeeded){a.scrollIntoViewIfNeeded();}else{a.scrollIntoView({block:'nearest'});}}})();""",
+                        null
+                    )
+                }, 150)
+            }
+
             if (isFullScreenMode && tabManager.activeTab != null) {
-                val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
                 val topPadding = if (directCutoutTop > 0) directCutoutTop else cachedCutoutTop
                 val leftPadding = maxOf(navBars.left, cutout.left)
                 val rightPadding = maxOf(navBars.right, cutout.right)
-                val bottomPadding = maxOf(navBars.bottom, cutout.bottom)
+                val bottomPadding = if (isImeVisible) {
+                    maxOf(imeInsets.bottom, navBars.bottom, cutout.bottom)
+                } else {
+                    maxOf(navBars.bottom, cutout.bottom)
+                }
                 view.setPadding(leftPadding, topPadding, rightPadding, bottomPadding)
             } else {
-                val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-                view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+                val topPadding = systemBars.top
+                val leftPadding = systemBars.left
+                val rightPadding = systemBars.right
+                val bottomPadding = if (isImeVisible) {
+                    maxOf(imeInsets.bottom, systemBars.bottom)
+                } else {
+                    systemBars.bottom
+                }
+                view.setPadding(leftPadding, topPadding, rightPadding, bottomPadding)
             }
             WindowInsetsCompat.CONSUMED
         }
@@ -790,7 +823,7 @@ class MainActivity : AppCompatActivity() {
                     visibility = View.VISIBLE
                 }
                 binding.topBar.visibility = View.GONE
-                binding.bottomNavBar.visibility = View.GONE
+                updateBottomNavVisibility()
 
                 applyFullscreenOrientation(platform, webView)
                 setSystemBarsVisible(false)
@@ -982,8 +1015,6 @@ class MainActivity : AppCompatActivity() {
             removeView(view)
             visibility = View.GONE
         }
-        binding.topBar.visibility = View.VISIBLE
-        binding.bottomNavBar.visibility = View.VISIBLE
 
         customViewCallback?.onCustomViewHidden()
         customView = null
@@ -994,7 +1025,7 @@ class MainActivity : AppCompatActivity() {
             applyFullScreenMode(true)
         } else {
             binding.topBar.visibility = View.VISIBLE
-            binding.bottomNavBar.visibility = View.VISIBLE
+            updateBottomNavVisibility()
             setSystemBarsVisible(true)
             showFullScreenControls(false)
         }
@@ -1227,7 +1258,7 @@ class MainActivity : AppCompatActivity() {
         isFullScreenMode = enabled
         if (enabled && tabManager.activeTab != null) {
             binding.topBar.visibility = View.GONE
-            binding.bottomNavBar.visibility = View.GONE
+            updateBottomNavVisibility()
             showFullScreenControls(true)
             // Keep the system navigation bar (bottom buttons) visible while hiding status bar
             WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -1243,7 +1274,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             if (customView == null) {
                 binding.topBar.visibility = View.VISIBLE
-                binding.bottomNavBar.visibility = View.VISIBLE
+                updateBottomNavVisibility()
                 showFullScreenControls(false)
                 setSystemBarsVisible(true)
                 ViewCompat.requestApplyInsets(binding.rootLayout)
