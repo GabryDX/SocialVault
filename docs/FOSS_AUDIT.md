@@ -25,7 +25,7 @@ SocialVault has been audited for compliance with the Open Source Definition (OSI
 ## 2. Project License & Legal Compatibility
 
 The SocialVault source code repository is licensed under:
-* **Primary License:** [Apache License, Version 2.0](LICENSE)
+* **Primary License:** [Apache License, Version 2.0](../LICENSE)
 * **OSI Approved:** Yes
 * **FSF Approved:** Yes (Free Software)
 * **SPDX Identifier:** `Apache-2.0`

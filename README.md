@@ -1,8 +1,8 @@
 # SocialVault 🛡️
 
 [![License](https://img.shields.io/badge/License-Apache%202.0%20%2F%20GPL%203.0-blue.svg)](LICENSE)
-[![FOSS Audit](https://img.shields.io/badge/FOSS%20Audit-100%25%20Compliant-brightgreen.svg)](foss_audit.md)
-[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(80%2F80%20Tests)-blue.svg)](security_audit.md)
+[![FOSS Audit](https://img.shields.io/badge/FOSS%20Audit-100%25%20Compliant-brightgreen.svg)](docs/FOSS_AUDIT.md)
+[![Security Audit](https://img.shields.io/badge/Security%20Audit-Hardened%20(80%2F80%20Tests)-blue.svg)](docs/SECURITY_AUDIT.md)
 [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
 
 An open-source, privacy-first multi-platform social media vault and sandboxed web wrapper for Android.
@@ -100,11 +100,12 @@ Native social media apps often collect extensive device telemetry, access contac
 
 ---
 
-## 🛡️ FOSS & Security Compliance
+## 🛡️ Security, Privacy & Transparency
 
-SocialVault has undergone rigorous open-source compliance and defensive security audits:
-- **[FOSS Compliance Audit](foss_audit.md)**: Independent repository inclusion audit covering dependencies, licensing (Free Software / GPLv3-compatible Apache 2.0), zero binary blobs, and zero telemetry trackers.
-- **[Security Architecture & Vulnerability Audit](security_audit.md)**: OWASP Mobile Application Security Verification Standard (MASVS v2.0) audit covering WebView multi-profile sandboxing, real-time tracker blocking, GPC/DNT injection, `FLAG_SECURE` screen privacy, intent sanitization, least privilege permissions, and data extraction protection.
+SocialVault is committed to transparency, verifiable privacy, and user trust:
+- **[Security Policy](SECURITY.md)**: Vulnerability reporting procedures, supported versions, and responsible disclosure guidelines.
+- **[Security & Privacy Audit](docs/SECURITY_AUDIT.md)**: OWASP Mobile Application Security Verification Standard (MASVS v2.0) audit covering WebView multi-profile sandboxing, real-time tracker blocking, GPC/DNT injection, `FLAG_SECURE` screen privacy, intent sanitization, least privilege permissions, and data extraction protection.
+- **[FOSS Compliance Audit](docs/FOSS_AUDIT.md)**: Independent repository inclusion audit covering dependencies, licensing (Free Software / GPLv3-compatible Apache 2.0), zero binary blobs, and zero telemetry trackers.
 
 ---
 
